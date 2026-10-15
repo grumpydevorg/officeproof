@@ -17,7 +17,7 @@ readonly FORK=https://github.com/rmorgans/Clippit
 readonly PACKAGE_VERSION=3.9.2-rmorgans.2
 readonly ASSEMBLY_VERSION=3.9.2
 CLIPPIT_DIR=${CLIPPIT_DIR:-$(cd "$(dirname "$0")/.." && pwd)/.local/Clippit}
-FEED=${FEED:-$HOME/.local/share/nuget/local-feed}
+FEED=${FEED:-$(cd "$(dirname "$0")/.." && pwd)/.local/nuget-feed}
 
 if [[ ! -d $CLIPPIT_DIR/.git ]]; then
     git clone --quiet "$FORK" "$CLIPPIT_DIR"

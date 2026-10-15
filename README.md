@@ -37,8 +37,8 @@ The flake also exports `overlays.default` (adds `officeproof` to a package set).
 
 ## Build from source
 
-Requires the .NET 10 SDK. While the patched Clippit is unreleased, build it into a local
-NuGet feed once per machine:
+Requires the .NET 10 SDK. While the patched Clippit is unreleased, build it into the
+repository-local NuGet feed `.local/nuget-feed` once per checkout:
 
 ```sh
 eng/pack-clippit.sh           # clones the pinned Clippit fork commit into .local/Clippit (override with CLIPPIT_DIR)

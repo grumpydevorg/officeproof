@@ -19,8 +19,8 @@ and inspect or edit a workbook without disturbing it. User-facing documentation 
   find/replace (`OpenXmlRegex`). Pinned to 3.9.2-rmorgans.2: 3.9.1 plus eight
   RevisionProcessor fixes, open upstream as sergey-tihon/Clippit#548-#555 and merged on the
   fork https://github.com/rmorgans/Clippit. `eng/pack-clippit.sh` builds it from that exact
-  commit (cloning into `CLIPPIT_DIR`, default `.local/Clippit`) into the local feed
-  `nuget.config` names; run it once per machine before the first restore. `nix/clippit.nix`
+  commit (cloning into `CLIPPIT_DIR`, default `.local/Clippit`) into the repository-local feed `.local/nuget-feed`
+  that `nuget.config` names; run it once per checkout before the first restore. `nix/clippit.nix`
   packs the same commit for the Nix package. When a nuget.org release contains the fixes, pin
   it and delete the script, `nuget.config`, `nix/clippit.nix` (and the `projectReferences`
   entry in `nix/package.nix`) and `ClippitWorkarounds`.
