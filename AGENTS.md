@@ -36,7 +36,7 @@ and inspect or edit a workbook without disturbing it. User-facing documentation 
   `DOTNET_ROOT=/opt/homebrew/opt/dotnet/libexec`; run `dotnet <path>/officeproof.dll` instead.
 
 ```
-eng/pack-clippit.sh                                         # once per machine: the pinned Clippit
+eng/pack-clippit.sh                                         # once per checkout: the pinned Clippit
 dotnet build officeproof.slnx
 dotnet test --solution officeproof.slnx --no-build          # Word tests (about 40) skip unless OFFICEPROOF_WORD_TESTS=1
 dotnet run --project src/OfficeProof.Cli -- <verb> ...      # or: dotnet src/OfficeProof.Cli/bin/Debug/net10.0/officeproof.dll
