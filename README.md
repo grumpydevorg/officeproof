@@ -24,7 +24,18 @@ packages without breaking them, and for checking that a change is exactly what i
 
 Every writing verb takes an input and a separate output; nothing is edited in place.
 
-## Install and build
+## Install
+
+With Nix (macOS or Linux; builds the patched Clippit too, and puts `pdftoppm` on the path):
+
+```sh
+nix run github:grumpydevorg/officeproof -- --help
+nix profile install github:grumpydevorg/officeproof
+```
+
+The flake also exports `overlays.default` (adds `officeproof` to a package set).
+
+## Build from source
 
 Requires the .NET 10 SDK. While the patched Clippit is unreleased, build it into a local
 NuGet feed once per machine:
@@ -38,6 +49,12 @@ dotnet test --solution officeproof.slnx --no-build
 Run the CLI with `dotnet src/OfficeProof.Cli/bin/Debug/net10.0/officeproof.dll <verb>` (or
 `dotnet run --project src/OfficeProof.Cli -- <verb>`). `--word` and the Word tests need
 Microsoft Word for Mac; page comparison needs poppler's `pdftoppm`.
+
+`nix/` packages the same build: `nix/clippit.nix` packs the Clippit fork commit that
+`eng/pack-clippit.sh` uses, and `nix/deps.json` / `nix/clippit-deps.json` lock the NuGet
+dependencies. After changing a package reference, regenerate them with
+`nix build .#officeproof.fetch-deps -o fd && ./fd nix/deps.json` (and `.clippit.fetch-deps`
+for Clippit).
 
 ## Examples
 
