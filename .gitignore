@@ -1,0 +1,11 @@
+# .NET build output
+bin/
+obj/
+
+# Checkout-local state: real documents, generate output, the Clippit clone of eng/pack-clippit.sh
+/.local/
+
+# Scratch
+*.bak
+*.bak[0-9]
+TestResults/

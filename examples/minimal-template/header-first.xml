@@ -1,0 +1,55 @@
+<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<!-- First-page header: the optional full-bleed cover image (metadata 'coverImage').
+
+     A cover photo goes in the FIRST-PAGE HEADER, not the body: the header layer draws
+     beneath body text, so the title and metadata flow over the image with no wrapping to
+     fight, and it bleeds cleanly to the page edge.
+
+     Sized to exactly A4 (210 x 297 mm at 36000 EMU/mm) and positioned from the PAGE origin,
+     so the bleed does not depend on margins. Without a cover image the drawing is dropped
+     and the first page has an empty header. -->
+<w:hdr xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"
+       xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships"
+       xmlns:wp="http://schemas.openxmlformats.org/drawingml/2006/wordprocessingDrawing"
+       xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main"
+       xmlns:pic="http://schemas.openxmlformats.org/drawingml/2006/picture">
+  <w:p>
+    <w:pPr><w:spacing w:after="0" w:line="240" w:lineRule="auto"/></w:pPr>
+    <w:r>
+      <w:drawing>
+        <wp:anchor distT="0" distB="0" distL="0" distR="0" simplePos="0"
+                   relativeHeight="251658240" behindDoc="1" locked="0"
+                   layoutInCell="1" allowOverlap="1">
+          <wp:simplePos x="0" y="0"/>
+          <wp:positionH relativeFrom="page"><wp:posOffset>0</wp:posOffset></wp:positionH>
+          <wp:positionV relativeFrom="page"><wp:posOffset>0</wp:posOffset></wp:positionV>
+          <wp:extent cx="7560000" cy="10692000"/>
+          <wp:effectExtent l="0" t="0" r="0" b="0"/>
+          <wp:wrapNone/>
+          <wp:docPr id="900" name="Cover" descr="Cover image"/>
+          <wp:cNvGraphicFramePr>
+            <a:graphicFrameLocks noChangeAspect="0"/>
+          </wp:cNvGraphicFramePr>
+          <a:graphic>
+            <a:graphicData uri="http://schemas.openxmlformats.org/drawingml/2006/picture">
+              <pic:pic>
+                <pic:nvPicPr>
+                  <pic:cNvPr id="900" name="Cover" descr="Cover image"/>
+                  <pic:cNvPicPr/>
+                </pic:nvPicPr>
+                <pic:blipFill>
+                  <a:blip r:embed="{{COVERIMAGE}}"/>
+                  <a:stretch><a:fillRect/></a:stretch>
+                </pic:blipFill>
+                <pic:spPr>
+                  <a:xfrm><a:off x="0" y="0"/><a:ext cx="7560000" cy="10692000"/></a:xfrm>
+                  <a:prstGeom prst="rect"><a:avLst/></a:prstGeom>
+                </pic:spPr>
+              </pic:pic>
+            </a:graphicData>
+          </a:graphic>
+        </wp:anchor>
+      </w:drawing>
+    </w:r>
+  </w:p>
+</w:hdr>

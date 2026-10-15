@@ -1,0 +1,21 @@
+<Solution>
+  <Folder Name="/src/">
+    <Project Path="src/OfficeProof.Cli/OfficeProof.Cli.csproj" />
+    <Project Path="src/OfficeProof.Core/OfficeProof.Core.csproj" />
+    <Project Path="src/OfficeProof.Edit/OfficeProof.Edit.csproj" />
+    <Project Path="src/OfficeProof.Lint/OfficeProof.Lint.csproj" />
+    <Project Path="src/OfficeProof.Redline/OfficeProof.Redline.csproj" />
+    <Project Path="src/OfficeProof.Spreadsheet/OfficeProof.Spreadsheet.csproj" />
+    <Project Path="src/OfficeProof.Templating/OfficeProof.Templating.csproj" />
+    <Project Path="src/OfficeProof.Verify/OfficeProof.Verify.csproj" />
+  </Folder>
+  <Folder Name="/tests/">
+    <Project Path="tests/OfficeProof.Edit.Tests/OfficeProof.Edit.Tests.csproj" />
+    <Project Path="tests/OfficeProof.Lint.Tests/OfficeProof.Lint.Tests.csproj" />
+    <Project Path="tests/OfficeProof.Redline.Tests/OfficeProof.Redline.Tests.csproj" />
+    <Project Path="tests/OfficeProof.Spreadsheet.Tests/OfficeProof.Spreadsheet.Tests.csproj" />
+    <Project Path="tests/OfficeProof.Templating.Tests/OfficeProof.Templating.Tests.csproj" />
+    <Project Path="tests/OfficeProof.TestKit/OfficeProof.TestKit.csproj" />
+    <Project Path="tests/OfficeProof.Verify.Tests/OfficeProof.Verify.Tests.csproj" />
+  </Folder>
+</Solution>

@@ -1,0 +1,66 @@
+<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships">
+  <w:body>
+
+    <!-- ===== COVER PAGE (data-bound to the rpt:report store) ===== -->
+    <w:sdt>
+      <w:sdtPr>
+        <w:alias w:val="Title"/><w:tag w:val="title"/><w:id w:val="2001"/>
+        <w:dataBinding w:prefixMappings="xmlns:rpt='https://example.org/report'" w:xpath="/rpt:report[1]/rpt:title[1]" w:storeItemID="{{STOREID}}"/>
+        <w:text w:multiLine="1"/>
+      </w:sdtPr>
+      <w:sdtContent>
+        <w:p><w:pPr><w:pStyle w:val="CoverTitle"/></w:pPr><w:r><w:t>{{title}}</w:t></w:r></w:p>
+      </w:sdtContent>
+    </w:sdt>
+
+    <w:p><w:pPr><w:pStyle w:val="CoverMeta"/></w:pPr><w:r><w:rPr><w:rStyle w:val="Strong"/></w:rPr><w:t xml:space="preserve">Prepared for  </w:t></w:r>
+      <w:sdt><w:sdtPr><w:alias w:val="Prepared For"/><w:tag w:val="preparedFor"/><w:id w:val="2002"/>
+        <w:dataBinding w:prefixMappings="xmlns:rpt='https://example.org/report'" w:xpath="/rpt:report[1]/rpt:preparedFor[1]" w:storeItemID="{{STOREID}}"/><w:text/></w:sdtPr>
+        <w:sdtContent><w:r><w:t>{{preparedFor}}</w:t></w:r></w:sdtContent></w:sdt>
+    </w:p>
+    <w:p><w:pPr><w:pStyle w:val="CoverMeta"/></w:pPr><w:r><w:rPr><w:rStyle w:val="Strong"/></w:rPr><w:t xml:space="preserve">Prepared by  </w:t></w:r>
+      <w:sdt><w:sdtPr><w:alias w:val="Prepared By"/><w:tag w:val="preparedBy"/><w:id w:val="2003"/>
+        <w:dataBinding w:prefixMappings="xmlns:rpt='https://example.org/report'" w:xpath="/rpt:report[1]/rpt:preparedBy[1]" w:storeItemID="{{STOREID}}"/><w:text/></w:sdtPr>
+        <w:sdtContent><w:r><w:t>{{preparedBy}}</w:t></w:r></w:sdtContent></w:sdt>
+    </w:p>
+    <w:p><w:pPr><w:pStyle w:val="CoverMeta"/></w:pPr><w:r><w:rPr><w:rStyle w:val="Strong"/></w:rPr><w:t xml:space="preserve">Reference  </w:t></w:r>
+      <w:sdt><w:sdtPr><w:alias w:val="Reference"/><w:tag w:val="projectCode"/><w:id w:val="2004"/>
+        <w:dataBinding w:prefixMappings="xmlns:rpt='https://example.org/report'" w:xpath="/rpt:report[1]/rpt:projectCode[1]" w:storeItemID="{{STOREID}}"/><w:text/></w:sdtPr>
+        <w:sdtContent><w:r><w:t>{{projectCode}}</w:t></w:r></w:sdtContent></w:sdt>
+    </w:p>
+    <w:p><w:pPr><w:pStyle w:val="CoverMeta"/></w:pPr><w:r><w:rPr><w:rStyle w:val="Strong"/></w:rPr><w:t xml:space="preserve">Version  </w:t></w:r>
+      <w:sdt><w:sdtPr><w:alias w:val="Version"/><w:tag w:val="version"/><w:id w:val="2005"/>
+        <w:dataBinding w:prefixMappings="xmlns:rpt='https://example.org/report'" w:xpath="/rpt:report[1]/rpt:version[1]" w:storeItemID="{{STOREID}}"/><w:text/></w:sdtPr>
+        <w:sdtContent><w:r><w:t>{{version}}</w:t></w:r></w:sdtContent></w:sdt>
+    </w:p>
+    <w:p><w:pPr><w:pStyle w:val="CoverMeta"/></w:pPr><w:r><w:rPr><w:rStyle w:val="Strong"/></w:rPr><w:t xml:space="preserve">Author  </w:t></w:r>
+      <w:sdt><w:sdtPr><w:alias w:val="Author"/><w:tag w:val="author"/><w:id w:val="2006"/>
+        <w:dataBinding w:prefixMappings="xmlns:rpt='https://example.org/report'" w:xpath="/rpt:report[1]/rpt:author[1]" w:storeItemID="{{STOREID}}"/><w:text/></w:sdtPr>
+        <w:sdtContent><w:r><w:t>{{author}}</w:t></w:r></w:sdtContent></w:sdt>
+    </w:p>
+
+    <w:p><w:r><w:br w:type="page"/></w:r></w:p>
+
+    <!-- ===== BODY ===== -->
+    <w:p><w:pPr><w:pStyle w:val="Heading1"/></w:pPr><w:r><w:t>Summary</w:t></w:r></w:p>
+    <w:p><w:r><w:t>Body text takes its font and size from the Normal style and the theme. The cover above is data-bound: editing a field updates the embedded report store and every control bound to it.</w:t></w:r></w:p>
+    <w:p><w:pPr><w:pStyle w:val="Heading1"/></w:pPr><w:r><w:t>Introduction</w:t></w:r></w:p>
+    <w:p><w:pPr><w:pStyle w:val="Heading2"/></w:pPr><w:r><w:t>Background</w:t></w:r></w:p>
+    <w:p><w:r><w:t>Headings number themselves from numbering.xml; nothing here is typed by hand.</w:t></w:r></w:p>
+    <w:p><w:pPr><w:pStyle w:val="ListBullet"/></w:pPr><w:r><w:t>Cover fields come from report.yaml, or from --metadata.</w:t></w:r></w:p>
+    <w:p><w:pPr><w:pStyle w:val="ListBullet"/></w:pPr><w:r><w:t>Document properties come from the bindings in template.yaml.</w:t></w:r></w:p>
+    <w:p><w:pPr><w:pStyle w:val="Heading3"/></w:pPr><w:r><w:t>Scope</w:t></w:r></w:p>
+    <w:p><w:r><w:t>A Heading 3 nests under Heading 2 and numbers as 2.1.1.</w:t></w:r></w:p>
+
+    <w:sectPr>
+      <w:headerReference w:type="default" r:id="{{HEADERID}}"/>
+      <w:headerReference w:type="first" r:id="{{FIRSTHEADERID}}"/>
+      <w:footerReference w:type="default" r:id="{{FOOTERID}}"/>
+      <w:pgSz w:w="11906" w:h="16838"/>
+      <w:pgMar w:top="1440" w:right="1440" w:bottom="1440" w:left="1440" w:header="708" w:footer="708" w:gutter="0"/>
+      <w:cols w:space="708"/>
+      <w:titlePg/>
+    </w:sectPr>
+  </w:body>
+</w:document>

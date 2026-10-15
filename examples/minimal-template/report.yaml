@@ -1,0 +1,12 @@
+# Default report metadata for `officeproof generate` (cover, running header, data store,
+# document properties). Keys are free-form: the part files use them as {{key}} and
+# template.yaml binds them to document properties. Pass a report's own file with --metadata.
+report:
+  title: "Example report"
+  preparedFor: "Example Client Ltd"
+  preparedBy: "Example Consulting Ltd"
+  projectCode: "EX-001"
+  version: "2026-10-15"
+  author: "A. Author"
+  # Optional full-bleed cover image, relative to the template directory or absolute.
+  # coverImage: "cover.jpg"

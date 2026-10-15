@@ -1,0 +1,31 @@
+# A plain example template: no logo, no embedded fonts, no brand. Schema: README.md.
+
+name: Example
+
+dataStore:
+  namespace: https://example.org/report
+  prefix: rpt
+
+coreProperties:
+  title: "{{title}}"
+  subject: "{{preparedFor}}"
+  creator: "{{author}}"
+
+customProperties:
+  ProjectCode: "{{projectCode}}"
+  Version: "{{version}}"
+  PreparedBy: "{{preparedBy}}"
+
+identityKeys: [title, projectCode]
+
+# Every explicit colour styles.xml uses, and the rest of the theme's.
+palette:
+  colours:
+    "000000": black
+    ffffff: white
+    "404040": charcoal
+    f2f2f2: light grey
+    1f4e79: dark blue
+    2e75b6: blue
+    7f7f7f: grey
+    a6a6a6: silver

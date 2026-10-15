@@ -1,0 +1,17 @@
+<w:sdt>
+  <w:sdtPr><w:alias w:val="Title"/><w:tag w:val="title"/><w:id w:val="3101"/>
+    <w:dataBinding w:prefixMappings="xmlns:rpt='https://example.org/report'" w:xpath="/rpt:report[1]/rpt:title[1]" w:storeItemID="{{STOREID}}"/><w:text w:multiLine="1"/></w:sdtPr>
+  <w:sdtContent><w:p><w:pPr><w:pStyle w:val="CoverTitle"/></w:pPr><w:r><w:t>{{title}}</w:t></w:r></w:p></w:sdtContent>
+</w:sdt>
+<w:p><w:pPr><w:pStyle w:val="CoverMeta"/></w:pPr>
+  <w:r><w:rPr><w:rStyle w:val="Strong"/></w:rPr><w:t xml:space="preserve">Prepared for  </w:t></w:r>
+  <w:sdt><w:sdtPr><w:alias w:val="Prepared For"/><w:tag w:val="preparedFor"/><w:id w:val="3102"/>
+    <w:dataBinding w:prefixMappings="xmlns:rpt='https://example.org/report'" w:xpath="/rpt:report[1]/rpt:preparedFor[1]" w:storeItemID="{{STOREID}}"/><w:text/></w:sdtPr>
+    <w:sdtContent><w:r><w:t>{{preparedFor}}</w:t></w:r></w:sdtContent></w:sdt>
+</w:p>
+<w:p><w:pPr><w:pStyle w:val="CoverMeta"/></w:pPr>
+  <w:r><w:rPr><w:rStyle w:val="Strong"/></w:rPr><w:t xml:space="preserve">Reference  </w:t></w:r>
+  <w:sdt><w:sdtPr><w:alias w:val="Reference"/><w:tag w:val="projectCode"/><w:id w:val="3103"/>
+    <w:dataBinding w:prefixMappings="xmlns:rpt='https://example.org/report'" w:xpath="/rpt:report[1]/rpt:projectCode[1]" w:storeItemID="{{STOREID}}"/><w:text/></w:sdtPr>
+    <w:sdtContent><w:r><w:t>{{projectCode}}</w:t></w:r></w:sdtContent></w:sdt>
+</w:p>

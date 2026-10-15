@@ -1,0 +1,10 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <ItemGroup>
+    <ProjectReference Include="..\OfficeProof.Core\OfficeProof.Core.csproj" />
+    <!-- Clippit (accept/reject simulation, list numbering) is the in-process oracle; only Verify needs it. -->
+    <PackageReference Include="Clippit" />
+  </ItemGroup>
+  <ItemGroup>
+    <InternalsVisibleTo Include="OfficeProof.Verify.Tests" />
+  </ItemGroup>
+</Project>

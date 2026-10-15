@@ -1,0 +1,19 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <AssemblyName>officeproof</AssemblyName>
+    <RootNamespace>OfficeProof.Cli</RootNamespace>
+  </PropertyGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\OfficeProof.Core\OfficeProof.Core.csproj" />
+    <ProjectReference Include="..\OfficeProof.Templating\OfficeProof.Templating.csproj" />
+    <ProjectReference Include="..\OfficeProof.Lint\OfficeProof.Lint.csproj" />
+    <ProjectReference Include="..\OfficeProof.Redline\OfficeProof.Redline.csproj" />
+    <ProjectReference Include="..\OfficeProof.Verify\OfficeProof.Verify.csproj" />
+    <ProjectReference Include="..\OfficeProof.Spreadsheet\OfficeProof.Spreadsheet.csproj" />
+    <ProjectReference Include="..\OfficeProof.Edit\OfficeProof.Edit.csproj" />
+  </ItemGroup>
+  <ItemGroup>
+    <PackageReference Include="System.CommandLine" />
+  </ItemGroup>
+</Project>

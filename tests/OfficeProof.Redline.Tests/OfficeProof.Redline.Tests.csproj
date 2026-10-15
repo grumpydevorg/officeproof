@@ -1,0 +1,20 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <!-- Test names read as sentences. -->
+  </PropertyGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\..\src\OfficeProof.Redline\OfficeProof.Redline.csproj" />
+    <ProjectReference Include="..\OfficeProof.TestKit\OfficeProof.TestKit.csproj" />
+  </ItemGroup>
+  <ItemGroup>
+    <!-- Clippit accept/reject checks the redlines this project's tests produce. -->
+    <PackageReference Include="Clippit" />
+    <PackageReference Include="Microsoft.NET.Test.Sdk" />
+    <PackageReference Include="xunit.v3" />
+    <PackageReference Include="xunit.runner.visualstudio" />
+  </ItemGroup>
+  <ItemGroup>
+    <Using Include="Xunit" />
+  </ItemGroup>
+</Project>

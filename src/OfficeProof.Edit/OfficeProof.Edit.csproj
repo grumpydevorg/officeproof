@@ -1,0 +1,7 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <ItemGroup>
+    <ProjectReference Include="..\OfficeProof.Core\OfficeProof.Core.csproj" />
+    <!-- Clippit's OpenXmlRegex does the run splitting and coalescing behind the untracked replace. -->
+    <PackageReference Include="Clippit" />
+  </ItemGroup>
+</Project>
