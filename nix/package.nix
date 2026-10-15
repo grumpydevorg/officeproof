@@ -27,6 +27,8 @@ buildDotnetModule {
   dotnet-sdk = dotnetCorePackages.sdk_10_0;
   dotnet-runtime = dotnetCorePackages.runtime_10_0;
   executables = [ "officeproof" ];
+  # See nix/clippit.nix: server GC cannot start in the Linux build sandbox. Build-time only.
+  env.DOTNET_gcServer = "0";
 
   # verify --word compares Word's PDFs page by page through poppler's pdftoppm.
   makeWrapperArgs = [

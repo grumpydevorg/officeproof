@@ -39,6 +39,10 @@ buildDotnetModule rec {
   nugetDeps = ./clippit-deps.json;
   dotnet-sdk = dotnetCorePackages.sdk_10_0;
   dotnet-runtime = null;
+  # The compiler server's server GC cannot start in the Linux build sandbox, which hides
+  # /sys/devices/system/cpu ("process is affinitize to 0 CPUs", measured on a NixOS x86_64 VM,
+  # 2026-10-15); workstation GC builds. Build-time only.
+  env.DOTNET_gcServer = "0";
 
   # buildDotnetModule derives -p:Version from the numeric parts only (3.9.2.2); the package
   # version officeproof pins is the prerelease string.
