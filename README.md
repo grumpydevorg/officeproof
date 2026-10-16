@@ -145,9 +145,10 @@ and are not covered.
 
 - A revision kind the two Words, or Word and Clippit, treat differently, that Word did not
   restore in its planted case, or that has no planted test case, fails closed as unverifiable,
-  and the finding says which (today table, row, cell and section property changes, `w:cellIns`,
-  `w:cellMerge`, `w:cellDel`, `w:tblPrExChange`, revisions in `w:dir`/`w:bdo`, run-level
-  `w:customXml`). Only `--word` can check those. `redline` writes none of them.
+  with or without `--word`, and the finding says why (today table, row, cell and section
+  property changes, `w:cellIns`, `w:cellMerge`, `w:cellDel`, `w:tblPrExChange`, revisions in
+  `w:dir`/`w:bdo`, run-level `w:customXml`). `redline` writes none of them; ask for such a
+  change in a comment instead.
 - `--word` drives the local Word: Word for Mac (AppleScript) or Word for Windows (COM, in a
   signed-in desktop session, not over SSH or as a service). It reports the Word version
   (`word-version`), a warning when it is not a build the evidence was measured on, and

@@ -183,8 +183,8 @@ public sealed class PlantedDefectTests : IDisposable
             e => Set(Para(e.Body, "Cell text."), "Cell text, edited."),
             e => Track(e, Para(e.Body, "Cell text."), "Cell text.", "Cell text, edited.")),
         // Word's Reject All of a tracked table, row, cell or section property change did not
-        // restore these fixtures (revision-evidence.json "word"), so the tracked forms fail closed
-        // and are left to verify --word.
+        // restore these fixtures (revision-evidence.json "word"), so the tracked forms fail closed,
+        // with or without verify --word.
         ["table-properties"] = new("reject-mismatch", "main story",
             e => e.Body.Descendants(W + "tblW").Single().SetAttributeValue(W + "w", 4000),
             e =>
