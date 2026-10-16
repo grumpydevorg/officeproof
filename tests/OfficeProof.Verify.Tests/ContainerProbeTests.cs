@@ -1,45 +1,20 @@
-// Container probe, recorded 2026-10-15: Microsoft Word for Mac 16.113.3 (16.113.26092714) on
-// macOS 26.6.2. Each fixture holds "Alpha [-beta-][+delta+] gamma bold" with a
-// tracked bold on "bold" (w:rPrChange) inside one container. Word's views come from
-// WordOracle.SaveView (Word's own Reject/Accept All Changes, then save); "Clippit" is
-// RevisionProcessor on the unmodified bytes; "ViewBytes" is Outline.ViewBytes as of this date
-// (ClippitWorkarounds: w:hyperlink and w:fldSimple carried through Clippit as marker pairs; the
-// reject view puts the redline's styles and numbering back). Clippit columns are for the pinned
-// 3.9.2-rmorgans.2 (3.9.1 plus our fixes, see eng/pack-clippit.sh); published 3.9.1 gave K/A for
-// w:hyperlink, w:fldSimple, w:dir and w:bdo, U/U for comment text, and threw accepting a
-// w:cellDel after a cell without w:tcPr. Outcomes on the probed paragraph:
-//   R  rejected: "Alpha beta gamma bold", plain
-//   A  accepted: "Alpha delta gamma bold", "bold" bold
-//   U  untouched: every revision left in place
-//   K  deletion dropped, insertion kept ("Alpha delta gamma bold"); the bold is rejected
-//   X  refused: Word shows a modal dialog on open that blocks automation (WordOracle refuses first)
+// Probes of where Word, Clippit and officeproof's view (Outline.ViewBytes) accept and reject
+// tracked changes alike. Their recorded outcomes live in src/OfficeProof.Verify/revision-evidence.json
+// (with the outcome letters, the Word builds and dates); RevisionAllowlist admits a site only
+// when every probe it cites agrees across every engine. "Word" is WordOracle.SaveView (Word's own
+// Reject/Accept All Changes, then save); "clippit" is RevisionProcessor on the unmodified bytes,
+// for the pinned 3.9.2-rmorgans.2 (published 3.9.1 gave K/A for w:hyperlink, w:fldSimple, w:dir
+// and w:bdo, U/U for comment text, and threw accepting a w:cellDel after a cell without w:tcPr);
+// "view" is Outline.ViewBytes (ClippitWorkarounds: w:hyperlink and w:fldSimple carried through
+// Clippit as marker pairs; the reject view puts the redline's styles and numbering back).
 //
-// | container                  | Word rej | Word acc | Clippit rej | Clippit acc | W=C rej | W=C acc | ViewBytes rej | ViewBytes acc |
-// |----------------------------|----------|----------|-------------|-------------|---------|---------|---------------|---------------|
-// | header                     | R        | A        | R           | A           | yes     | yes     | R             | A             |
-// | footer                     | R        | A        | R           | A           | yes     | yes     | R             | A             |
-// | footnote                   | R        | A        | R           | A           | yes     | yes     | R             | A             |
-// | endnote                    | R        | A        | R           | A           | yes     | yes     | R             | A             |
-// | comment text               | R        | A        | R           | A           | yes     | yes     | R             | A             |
-// | text box (VML)             | R        | A        | R           | A           | yes     | yes     | R             | A             |
-// | w:hyperlink                | R        | A        | R           | A           | yes     | yes     | R             | A             |
-// | w:sdt, run level           | R        | A        | R           | A           | yes     | yes     | R             | A             |
-// | w:sdt, block level         | R        | A        | R           | A           | yes     | yes     | R             | A             |
-// | w:smartTag                 | R        | A        | R           | A           | yes     | yes     | R             | A             |
-// | w:fldSimple                | R        | A        | R           | A           | yes     | yes     | R             | A             |
-// | w:customXml, run level     | X        | X        | K           | A           | -       | -       | K             | A             |
-// | table cell                 | R        | A        | R           | A           | yes     | yes     | R             | A             |
-// | moveFrom/moveTo (+ edits)  | R        | A        | R           | A           | yes     | yes     | R             | A             |
-// | deleted paragraph mark     | R        | A        | R           | A           | yes     | yes     | R             | A             |
-// | w:dir (rtl), run level     | R        | A        | R           | A           | yes     | yes     | R             | A             |
-// | w:bdo (rtl), run level     | R        | A        | R           | A           | yes     | yes     | R             | A             |
-// | w:hyperlink in run w:sdt   | R        | A        | R           | A           | yes     | yes     | R             | A             |
-//
+// Container probes (ContainerProbeTests): each fixture holds "Alpha [-beta-][+delta+] gamma bold"
+// with a tracked bold on "bold" (w:rPrChange) inside one container.
 // Word rejects and accepts tracked changes in headers and footers like any other story, and
 // records them too: with Track Changes on, text set and inserted through AppleScript in the
-// primary header and footer was saved as w:ins/w:del in header1.xml and footer1.xml (same
-// date). Word's document-wide Reject/Accept All reaches every story above, although its
-// "revisions" collection counts the main story only.
+// primary header and footer was saved as w:ins/w:del in header1.xml and footer1.xml (Word for
+// Mac 16.113, 2026-10-15). Word's document-wide Reject/Accept All reaches every story, although
+// its "revisions" collection counts the main story only.
 // Wrappers in Word's saved views: w:hyperlink and w:sdt kept, w:smartTag dropped (content
 // kept), w:fldSimple rewritten as a complex field (fldChar), the VML text box kept as VML.
 // Word keeps w:dir and w:bdo on save and ends their content with an added run holding U+202C
@@ -47,27 +22,8 @@
 // ReverseRevisionsTransform: it reverses w:ins/w:del only when their nearest ancestor other than
 // w:sdt, w:sdtContent, w:smartTag, w:hyperlink, w:fldSimple, w:dir and w:bdo is w:p.
 //
-// Revision kinds (RevisionKindProbeTests, same date and versions; KindDump of the main story:
-// text, ListItemRetriever list numbers, table structure). Outcomes:
-//   R  as Word's Reject All;  A  as Word's Accept All (in a reject column: rejected as accepted)
-//   G  short row: the inserted cell removed without widening the cell before it (Word gives that
-//      cell gridSpan 2)
-//   T  throws NullReferenceException (3.9.1's AcceptDeletedCellsTransform read the w:tcPr of the
-//      cell before the deleted one, which has none)
-//   M  moved cell edges: the row's text and properties restored, but the grid rebuilt with three
-//      columns, B1 and A2 spanning two, so row 2's cell edges no longer line up with row 1's
-//
-// | kind                                   | Word rej | Word acc | Clippit rej | Clippit acc | W=C rej | W=C acc | ViewBytes rej | ViewBytes acc | allowlist today |
-// |----------------------------------------|----------|----------|-------------|-------------|---------|---------|---------------|---------------|-----------------|
-// | w:numberingChange in w:numPr           | R        | A        | R           | A           | yes     | yes     | R             | A             | allowed         |
-// | w:pPrChange of ilvl and numId          | R        | A        | R           | A           | yes     | yes     | R             | A             | allowed         |
-// | w:cellIns                              | R        | A        | G           | A           | no      | yes     | G             | A             | refused         |
-// | w:cellDel                              | R        | A        | R           | A           | yes     | yes     | R             | A             | refused         |
-// | w:cellDel, cell before has no w:tcPr   | R        | A        | R           | A           | yes     | yes     | R             | A             | refused         |
-// | w:cellMerge (vMerge rest/cont)         | R        | A        | A           | A           | no      | yes     | A             | A             | refused         |
-// | w:tblPrExChange (row jc)               | R        | A        | R           | A           | yes     | yes     | R             | A             | allowed         |
-// | w:del (author B) in w:ins (author A)   | R        | A        | R           | A           | yes     | yes     | R             | A             | allowed         |
-//
+// Revision-kind probes (RevisionKindProbeTests; KindDump of the main story: text,
+// ListItemRetriever list numbers, table structure).
 // Word's list strings (WordOracle.Outline) equal ListItemRetriever's on the ViewBytes views:
 // "1. 2. 3." for the numberingChange list in both views (Word and Clippit drop the markup and
 // leave the numbering alone), "1. 2. 3. 4." rejected and "1. 1.1. a) 2." accepted for the
@@ -76,12 +32,9 @@
 // w:cellMerge; for w:tblPrExChange it copies the row's w:jc into w:trPr and adds a w:tcPrChange
 // to each cell of the row and a w:tblGridChange. A w:numberingChange in w:pPr/w:rPr is not
 // schema-valid (CT_ParaRPr has none) and was not shown to Word.
-//
-// Word for Windows (Microsoft 365, WINWORD 16.0.20430, Windows 11 on arm64; 2026-10-16) gives
-// every container outcome above and every kind outcome but one: its Reject All of the
-// w:tblPrExChange is M, not R (deterministic over four saves; WordCheck then reports
-// word-reject-mismatch and a changed printed page, where Word for Mac's pages are identical).
-// RevisionKindProbeTests.WindowsWord records it. Its list strings equal Word for Mac's.
+// Word for Windows' Reject All of the w:tblPrExChange is M (deterministic over four saves;
+// WordCheck then reports word-reject-mismatch and a changed printed page, where Word for Mac's
+// pages are identical); every other outcome and its list strings equal Word for Mac's.
 using System.Text;
 using System.Xml.Linq;
 using Clippit;
@@ -110,27 +63,19 @@ public sealed class ContainerProbeTests : IDisposable
 
     private const Outcome R = Outcome.Rejected, A = Outcome.Accepted, U = Outcome.Untouched, K = Outcome.InsertionKept, X = Outcome.Refused;
 
-    private static readonly Row[] Recorded =
-    [
-        new("header", R, A, R, A, R, A),
-        new("footer", R, A, R, A, R, A),
-        new("footnote", R, A, R, A, R, A),
-        new("endnote", R, A, R, A, R, A),
-        new("comment", R, A, R, A, R, A),
-        new("textbox", R, A, R, A, R, A),
-        new("hyperlink", R, A, R, A, R, A),
-        new("sdt-run", R, A, R, A, R, A),
-        new("sdt-block", R, A, R, A, R, A),
-        new("smarttag", R, A, R, A, R, A),
-        new("fldsimple", R, A, R, A, R, A),
-        new("customxml", X, X, K, A, K, A),
-        new("table-cell", R, A, R, A, R, A),
-        new("move", R, A, R, A, R, A),
-        new("deleted-paragraph-mark", R, A, R, A, R, A),
-        new("dir", R, A, R, A, R, A),
-        new("bdo", R, A, R, A, R, A),
-        new("sdt-hyperlink", R, A, R, A, R, A),
-    ];
+    // The outcomes revision-evidence.json records for each container; the Word columns are the
+    // installed platform's Word.
+    private static readonly Row[] Recorded = [.. ProbeFixture.Containers.Select(container =>
+    {
+        var o = RevisionEvidence.Probes[container].Outcomes;
+        var word = o[EvidenceLetters.WordEngine];
+        Outcome Of(string letters, int view) => letters[view] switch
+        {
+            'R' => R, 'A' => A, 'U' => U, 'K' => K, 'X' => X,
+            var c => throw new InvalidDataException($"container probe {container}: outcome '{c}' has no container dump"),
+        };
+        return new Row(container, Of(word, 0), Of(word, 1), Of(o["clippit"], 0), Of(o["clippit"], 1), Of(o["view"], 0), Of(o["view"], 1));
+    })];
 
     private readonly string _dir = Path.Combine(Path.GetTempPath(), "officeproof-container-probe", Guid.NewGuid().ToString("N"));
 
@@ -152,10 +97,6 @@ public sealed class ContainerProbeTests : IDisposable
         }
         return data;
     }
-
-    [Fact]
-    public void Every_probe_container_is_recorded() =>
-        Assert.Equal(ProbeFixture.Containers, Recorded.Select(r => r.Container));
 
     [Theory]
     [MemberData(nameof(Cases))]
@@ -533,23 +474,19 @@ public sealed class RevisionKindProbeTests : IDisposable
 
     private const Outcome R = Outcome.Rejected, A = Outcome.Accepted, G = Outcome.ShortRow, T = Outcome.Throws, M = Outcome.MovedCellEdges;
 
-    private static readonly Row[] Recorded =
-    [
-        new("numbering-change", R, A, R, A, R, A),
-        new("numpr-change", R, A, R, A, R, A),
-        new("cell-ins", R, A, G, A, G, A),
-        new("cell-del", R, A, R, A, R, A),
-        new("cell-del-no-tcpr", R, A, R, A, R, A),
-        new("cell-merge", R, A, A, A, A, A),
-        new("tblprex-change", R, A, R, A, R, A),
-        new("del-in-ins-other-author", R, A, R, A, R, A),
-    ];
-
-    /// <summary>Where Word for Windows (16.0.20430, 2026-10-16) differs from the recorded Word for Mac outcome.</summary>
-    private static readonly Dictionary<(string Kind, OutlineView View), Outcome> WindowsWord = new()
+    // The outcomes revision-evidence.json records for each kind; the Word columns are the
+    // installed platform's Word.
+    private static readonly Row[] Recorded = [.. KindFixture.Kinds.Select(kind =>
     {
-        [("tblprex-change", OutlineView.RejectAll)] = M,
-    };
+        var o = RevisionEvidence.Probes[kind].Outcomes;
+        var word = o[EvidenceLetters.WordEngine];
+        Outcome Of(string letters, int view) => letters[view] switch
+        {
+            'R' => R, 'A' => A, 'G' => G, 'T' => T, 'M' => M,
+            var c => throw new InvalidDataException($"kind probe {kind}: outcome '{c}' has no kind dump"),
+        };
+        return new Row(kind, Of(word, 0), Of(word, 1), Of(o["clippit"], 0), Of(o["clippit"], 1), Of(o["view"], 0), Of(o["view"], 1));
+    })];
 
     /// <summary>
     /// The allowlist keys (<c>w:site</c> or <c>w:site inside context</c> of an
@@ -601,8 +538,9 @@ public sealed class RevisionKindProbeTests : IDisposable
     public static TheoryData<string> AllowlistCases() => [.. Refused.Keys];
 
     [Fact]
-    public void Every_probe_kind_is_recorded() =>
-        Assert.Equal(KindFixture.Kinds, Recorded.Select(r => r.Kind));
+    public void Every_probe_in_the_evidence_has_a_fixture() =>
+        Assert.Equal(ProbeFixture.Containers.Concat(KindFixture.Kinds).Order(StringComparer.Ordinal),
+            RevisionEvidence.Probes.Keys.Order(StringComparer.Ordinal));
 
     // The Open XML SDK 3.5 validator rejects w:smartTag as a child of w:p under both Office 2007
     // and Office 2019 ("invalid child element ... smartTag"), although ECMA-376 CT_P admits it
@@ -680,9 +618,7 @@ public sealed class RevisionKindProbeTests : IDisposable
     {
         SkipUnlessWord();
         var row = Recorded.Single(r => r.Kind == kind);
-        var outcome = OperatingSystem.IsWindows() && WindowsWord.TryGetValue((kind, view), out var windows)
-            ? windows
-            : Pick(view, row.WordReject, row.WordAccept);
+        var outcome = Pick(view, row.WordReject, row.WordAccept);
         var saved = Path.Combine(_dir, $"{kind}-{view}-word.docx");
         WordOracle.SaveView(Build(kind), view, saved, TimeSpan.FromMinutes(2));
 
@@ -934,4 +870,10 @@ internal static class KindDump
         if (tcPr.Element(W + "tcPrChange") is not null) flags.Add("Δ");
         return flags.Count == 0 ? "" : $"({string.Join(",", flags)}) ";
     }
+}
+
+/// <summary>The engine key in revision-evidence.json of the Word the Word tests drive here.</summary>
+internal static class EvidenceLetters
+{
+    public static string WordEngine => OperatingSystem.IsWindows() ? "word-windows" : "word-mac";
 }

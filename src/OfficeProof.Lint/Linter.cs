@@ -22,6 +22,8 @@ public static class Linter
         new TocDirectFormattingRule(),
         new UnresolvedRevisionRule(),
         new RevisionInStylesRule(),
+        new TableLookMissingRule(),
+        new UpdateFieldsOnOpenRule(),
     ];
 
     /// <summary>The built-in rule with <paramref name="id"/> (configured with <paramref name="palette"/>), or null.</summary>

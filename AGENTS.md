@@ -87,7 +87,7 @@ unreadable). `OfficeProof.Cli` composes them into verbs.
 | `generate [--template] [--metadata] [--fonts] [-o]` | Emit `<name>.dotx` + `<name>-sample.docx` from the template directory; validate both |
 | `retemplate <in> <out> [--template] [--metadata] [--force]` | Restyle a report (untracked rewrite): remap the template's `headingStyles` to its headings, drop typed numbers, strip direct fonts (keep cover sizing), swap canonical parts, bind the cover, logo footer, fonts, `updateFields`; then validate + `dangling-style` + `brand-colour`. Refuses a document that does not carry the template's `identityKeys` unless `--metadata` is given |
 | `validate <file>` | Open XML SDK schema validation (Office 2019), `.docx` or `.xlsx` |
-| `lint <in> [--template] [--rule id]... [--list-rules]` | Typed heading/caption numbers, numbers shown twice, duplicate numbers, typed cross-references (plural lists included), missing reference targets, TOC direct formatting, dangling styles, off-palette colours (needs a template palette), unresolved revisions, revisions inside style definitions. Chapter numbers ("Figure 2.1") are not single-counter captions and are left alone |
+| `lint <in> [--template] [--rule id]... [--list-rules]` | Typed heading/caption numbers, numbers shown twice, duplicate numbers, typed cross-references (plural lists included), missing reference targets, TOC direct formatting, dangling styles, off-palette colours (needs a template palette), unresolved revisions, revisions inside style definitions, tables without `w:tblLook` (Word styles them at random per open), `w:updateFields` (Word asks to update fields on open). Chapter numbers ("Figure 2.1") are not single-counter captions and are left alone |
 | `replace <in> <out> --find --with [--regex] [--story] [--expect] [--force] [--json]` | Untracked find/replace in our own documents, across runs, in every story; refuses documents with tracked changes, a pair that matches nothing, a total other than `--expect`, and matches covering fields or drawings; reports new schema errors |
 | `redline <in> <out> [--edits] [--captions] [--fix] [--headings] [--level] [--toc-font] [--force]` | Tracked changes + comments, then the `verify` checks |
 | `verify <original> <redline> [--allow-style ids] [--word [--keep-pages dir]]` | Reject All restores the original in every story (see below), no revisions in styles/numbering, revisions only where the allowlist has evidence, references resolve after Accept All; an existing style, list, theme or layout setting changed outside tracked changes is an error unless the style is declared with `--allow-style` (`redline` declares the TOC styles `--toc-font` changes); `--word` has Word reject all changes in both documents and compares every story and every printed page, compares heading numbers in both views and updates fields |
@@ -121,17 +121,40 @@ Windows 16.0.20430 (Microsoft 365, Windows 11 on arm64), 2026-10-15/16.
   and `retemplate` set, is dropped (Word for Mac asks about it in a modal dialog that may open
   off screen; `verify --word` on generate's sample hung until its timeout); a table without
   `w:tblLook` gets the documented 0x04A0 (both Words otherwise read it as 0000 or 04A0 at
-  random, per open).
+  random, per open). Word's verdict then covers the adjusted copies, not the files as the
+  recipient opens them, so `verify --word` says so (`word-adjusted`, Warning) whenever either
+  adjustment applied, and `lint` reports both conditions in the file (`table-look-missing`,
+  `update-fields-on-open`).
 - Windows: Word cannot open or save documents from session 0 (an SSH logon, a service), so the
   backend refuses there; run it in a desktop session (over SSH: a scheduled task with an
-  interactive logon). Word's PDF after Accept/Reject All is exported from a fresh open of its
-  save of the view: the live view laid an edited line out 0.12 pt off. COM needs built-in
-  interop, so the CLI is never trimmed or AOT-compiled.
+  interactive logon whose settings allow battery power, or it never starts on a laptop host).
+  Word's PDF after Accept/Reject All is exported from a fresh open of its save of the view: the
+  live view laid an edited line out 0.12 pt off. COM needs built-in interop, so the CLI is
+  never trimmed or AOT-compiled.
 - One recorded difference: Word for Windows' Reject All of a row-level `w:tblPrExChange`
-  rebuilds the table grid, moving the row's cell edges and changing the printed page
-  (`RevisionKindProbeTests.WindowsWord`); Word for Mac and Clippit restore the row. The
-  allowlist therefore refuses `w:tblPrExChange` (`unverifiable-revision`): a redline the two
-  Words reject differently cannot be shown to reject back to the original.
+  rebuilds the table grid, moving the row's cell edges and changing the printed page; Word for
+  Mac and Clippit restore the row. A redline the two Words reject differently cannot be shown
+  to reject back to the original, so the allowlist refuses it.
+
+### Revision evidence and re-measuring Word
+
+`src/OfficeProof.Verify/revision-evidence.json` (embedded, read by `RevisionEvidence`) is the
+one record of what is known: each engine (Word for Mac, Word for Windows, Clippit,
+officeproof's view) and the Word builds measured, each probe's Reject/Accept outcome per engine,
+and each revision site's evidence (a planted case, the probes it cites). `RevisionAllowlist`
+admits a site only when a planted case exercises it and every cited probe agrees in every
+engine; an `unverifiable-revision` finding names the engines that disagree. The tests hold the
+file to the code: probe fixtures (`ContainerProbeTests`, `RevisionKindProbeTests`) must match
+its Clippit and view columns on every run and its Word column for the installed Word with
+`OFFICEPROOF_WORD_TESTS=1`; each `"planted": true` must be exercised by a `PlantedDefectTests`
+case.
+
+`verify --word` reports the installed Word's version (`word-version`): Info on a build of the
+recorded version, Warning otherwise. Microsoft ships Word monthly, so before a release run the
+Word tests on a Mac and on Windows (in a desktop session); after a Word update
+`Installed_word_is_a_build_the_revision_evidence_was_measured_on` fails until the other Word
+tests pass and the new version and date are recorded under `engines`. A changed outcome is
+recorded in the probe's column, which changes what the allowlist admits.
 
 ## The methodology
 
@@ -171,21 +194,24 @@ reader sees (headings, captions, cross-references, TOC) is generated by Word, no
   after a cell without `w:tcPr`; the pinned 3.9.2-rmorgans.2 fixes all of these.
   `ClippitWorkarounds` (marker pairs for hyperlinks and simple fields, the other two fixed
   up front) stays until a nuget.org release has the fixes. Revisions anywhere else fail closed
-  (`unverifiable-revision`): `RevisionAllowlist` lists each allowed site with its evidence.
-  Still off it: `w:cellIns` (the pinned Clippit leaves the row a cell short), `w:cellMerge`
-  (it keeps a rejected merge) and `w:tblPrExChange` (Word for Windows rejects it differently
-  from Word for Mac), where the engines disagree (`RevisionKindProbeTests`); `w:cellDel` and
-  revisions in `w:dir`/`w:bdo`, which now agree but have no planted cases yet (the SDK
-  validator also rejects `w:dir`/`w:bdo`); and run-level `w:customXml` (Word answers it with a
-  modal dialog).
+  (`unverifiable-revision`): `RevisionAllowlist` admits only the sites
+  [the revision evidence](#revision-evidence-and-re-measuring-word) supports. Still off it:
+  table, row, cell and section property changes (`w:tblPrChange`, `w:trPrChange`,
+  `w:tcPrChange`, `w:sectPrChange`: Word for Mac's Reject All of the planted cases rebuilt the
+  table grid and wrote its own header and footer distances, 2026-10-16), `w:cellIns` (the pinned
+  Clippit leaves the row a cell short), `w:cellMerge` (it keeps a rejected merge) and
+  `w:tblPrExChange` (Word for Windows rejects it differently from Word for Mac), where the
+  engines disagree; `w:cellDel` and revisions in `w:dir`/`w:bdo`, which agree but have no
+  planted cases yet (the SDK validator also rejects `w:dir`/`w:bdo`); and run-level
+  `w:customXml` (Word answers it with a modal dialog). `redline` writes none of these; for a
+  reviewer's redline only `--word` can check them.
 - Word for Mac (16.113) and Word for Windows (16.0.20430) accept and reject tracked changes in
   headers, footers, notes, comments, text boxes, hyperlinks, content controls, smart tags,
-  simple fields, table cells, moves, numbering changes and table-exception changes the same way
-  the pinned Clippit does, except Word for Windows' Reject All of a table-exception change
-  (`ContainerProbeTests`, `RevisionKindProbeTests`, [The Word oracle](#the-word-oracle)).
-  `--word` therefore also compares Word's own Reject-All save of each document story by story,
-  and their PDFs page by page at zero pixel tolerance (two exports of one document are
-  pixel-identical).
+  simple fields, table cells, moves and numbering changes the same way the pinned Clippit
+  does. Word leaves an empty `w:hyperlink` behind when rejecting an inserted link and renumbers
+  drawing ids on every save; the comparison ignores both. `--word` also compares Word's own
+  Reject-All save of each document story by story, and their PDFs page by page at zero pixel
+  tolerance (two exports of one document are pixel-identical).
 - Untracked changes to definitions (`definition-changed`, Error): an existing style changed or
   removed unless declared, `docDefaults`, an existing list (`abstractNum`/`num`), the theme,
   and settings that affect layout. New styles and lists, review-state settings (rsids, zoom,

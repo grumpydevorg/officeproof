@@ -134,16 +134,36 @@ untracked defects planted in a redline; `verify` fails each of them. It also cat
 Word itself sets: tracked changes inside style definitions are *not* undone by Word's Reject
 All, so `verify` refuses them and `redline` numbers headings with new styles instead.
 
+## What a pass means
+
+`verify` says Reject All gives the original back in **desktop Microsoft Word for Mac and Word
+for Windows**: the revision kinds it admits were measured to reject alike in both, and in
+Clippit, on the Word builds recorded in
+[`revision-evidence.json`](src/OfficeProof.Verify/revision-evidence.json). Word for the web,
+Word on iPad and phones, LibreOffice and Google Docs have their own revision and layout engines
+and are not covered.
+
+- A revision kind the two Words, or Word and Clippit, treat differently, that Word did not
+  restore in its planted case, or that has no planted test case, fails closed as unverifiable,
+  and the finding says which (today table, row, cell and section property changes, `w:cellIns`,
+  `w:cellMerge`, `w:cellDel`, `w:tblPrExChange`, revisions in `w:dir`/`w:bdo`, run-level
+  `w:customXml`). Only `--word` can check those. `redline` writes none of them.
+- `--word` drives the local Word: Word for Mac (AppleScript) or Word for Windows (COM, in a
+  signed-in desktop session, not over SSH or as a service). It reports the Word version
+  (`word-version`), a warning when it is not a build the evidence was measured on, and
+  `word-adjusted` when the copies Word was given differ from the files: a table without
+  `w:tblLook` gets one (Word otherwise styles it at random on each open) and `w:updateFields` is
+  removed (Word for Mac otherwise blocks on a dialog). Word's verdict then covers the adjusted
+  copies; `lint` reports both conditions in the file itself.
+- Microsoft updates Word monthly. The evidence is re-measured by hand with the Word tests on a
+  Mac and a Windows machine (hosted CI has no Word).
+
 ## Limits
 
 - Comment anchor positions, bookmark ids, rsids and paragraph ids are treated as bookkeeping
   and not compared; inherited headers are not resolved per section; charts are compared only
   as bytes; custom XML parts are warnings only; the glossary document is not compared.
-- Revision kinds where Clippit and Word, or Word for Mac and Word for Windows, disagree, or
-  that have no planted test case (`w:cellIns`, `w:cellMerge`, `w:cellDel`, `w:tblPrExChange`,
-  revisions in `w:dir`/`w:bdo`, run-level `w:customXml`) fail closed as unverifiable.
-- `--word` drives Microsoft Word for Mac (AppleScript) or Word for Windows (COM, in a desktop
-  session, not over SSH or as a service); elsewhere only the in-process checks run.
+- Without Word, only the in-process checks run.
 - Depends on a patched Clippit build (`eng/pack-clippit.sh`) until the fixes reach nuget.org.
 
 ## Contributing

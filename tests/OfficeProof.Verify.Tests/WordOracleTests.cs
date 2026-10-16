@@ -106,7 +106,10 @@ public sealed class WordOracleTests : IDisposable
             .Save(Path.Combine(_r.Dir, "tables.docx"));
         var copy = Path.Combine(_r.Dir, "tables-for-word.docx");
 
-        File.WriteAllBytes(copy, WordOracle.CopyForWord(path));
+        var result = WordOracle.CopyForWord(path);
+        File.WriteAllBytes(copy, result.Bytes);
+
+        Assert.Equal((false, 1), (result.UpdateFieldsRemoved, result.TablesGivenLook));
 
         using (var doc = WordprocessingDocument.Open(copy, isEditable: false))
         {
@@ -122,7 +125,11 @@ public sealed class WordOracleTests : IDisposable
     {
         var path = new DocxBuilder().Heading("Head1", "Summary").Para("No tables.").Save(Path.Combine(_r.Dir, "plain.docx"));
 
-        Assert.Equal(File.ReadAllBytes(path), WordOracle.CopyForWord(path));
+        var result = WordOracle.CopyForWord(path);
+
+        Assert.Equal(File.ReadAllBytes(path), result.Bytes);
+        Assert.False(result.Adjusted);
+        Assert.Null(WordCheck.AdjustedFinding(path, path));
     }
 
     [Fact]
@@ -140,10 +147,63 @@ public sealed class WordOracleTests : IDisposable
         }
         var copy = Path.Combine(_r.Dir, "update-fields-for-word.docx");
 
-        File.WriteAllBytes(copy, WordOracle.CopyForWord(path));
+        var result = WordOracle.CopyForWord(path);
+        File.WriteAllBytes(copy, result.Bytes);
 
-        using var result = WordprocessingDocument.Open(copy, isEditable: false);
-        Assert.Equal(others, Docx.Load(result.MainDocumentPart!.DocumentSettingsPart!).Root!.Elements().Select(e => e.Name));
+        Assert.Equal((true, 0), (result.UpdateFieldsRemoved, result.TablesGivenLook));
+
+        using var saved = WordprocessingDocument.Open(copy, isEditable: false);
+        Assert.Equal(others, Docx.Load(saved.MainDocumentPart!.DocumentSettingsPart!).Root!.Elements().Select(e => e.Name));
+    }
+
+    [Fact]
+    public void Verify_with_word_qualifies_its_verdict_when_word_was_given_adjusted_copies()
+    {
+        // The recipient's Word opens the files as they are; a pass covers the adjusted copies only.
+        var plain = new DocxBuilder().Para("Body.").Save(Path.Combine(_r.Dir, "qualified-original.docx"));
+        var withTable = new DocxBuilder().Para("Body.")
+            .Raw(new XElement(W + "tbl",
+                new XElement(W + "tblPr", new XElement(W + "tblW", new XAttribute(W + "w", 0), new XAttribute(W + "type", "auto"))),
+                new XElement(W + "tblGrid", new XElement(W + "gridCol", new XAttribute(W + "w", 2000))),
+                new XElement(W + "tr", new XElement(W + "tc", P(R("cell"))))))
+            .Save(Path.Combine(_r.Dir, "qualified-redline.docx"));
+        using (var doc = WordprocessingDocument.Open(withTable, isEditable: true))
+        {
+            var part = doc.MainDocumentPart!.DocumentSettingsPart!;
+            var xml = Docx.Load(part);
+            xml.Root!.Add(new XElement(W + "updateFields", new XAttribute(W + "val", "true")));
+            Docx.Save(part, xml);
+        }
+
+        var finding = WordCheck.AdjustedFinding(plain, withTable);
+
+        Assert.NotNull(finding);
+        Assert.Equal(("word-adjusted", Severity.Warning), (finding.Rule, finding.Severity));
+        Assert.Contains("original 0, redline 1", finding.Message, StringComparison.Ordinal);
+        Assert.Contains("w:updateFields removed (redline)", finding.Message, StringComparison.Ordinal);
+    }
+
+    [Theory]
+    [InlineData("16.113", "16.113", true)]
+    [InlineData("16.113", "16.113.3", true)]
+    [InlineData("16.0.20430", "16.0.20430.20146", true)]
+    [InlineData("16.113", "16.1130", false)]
+    [InlineData("16.113", "16.114.1", false)]
+    [InlineData("16.0.20430", "16.0.20431.10000", false)]
+    public void Installed_word_matches_the_measured_version_or_a_build_of_it(string measured, string installed, bool expected) =>
+        Assert.Equal(expected, WordOracle.IsMeasured(measured, installed));
+
+    [Fact]
+    public void Installed_word_is_a_build_the_revision_evidence_was_measured_on()
+    {
+        // Fails after a Word update until the Word tests pass on it and revision-evidence.json
+        // records its version: the evidence is only as current as this test.
+        RequireWord();
+        var (measured, installed) = WordOracle.Version();
+
+        Assert.NotNull(installed);
+        Assert.True(WordOracle.IsMeasured(measured.Version, installed),
+            $"{measured.Name} {installed} is installed; revision-evidence.json records {measured.Version} ({measured.Measured})");
     }
 
     [Fact]

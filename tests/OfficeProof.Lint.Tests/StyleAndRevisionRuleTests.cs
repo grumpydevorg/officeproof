@@ -2,6 +2,7 @@ using System.Security.Cryptography;
 using System.Xml.Linq;
 using OfficeProof.Core;
 using OfficeProof.TestKit;
+using DocumentFormat.OpenXml.Packaging;
 using static OfficeProof.Lint.Tests.Fixtures;
 
 namespace OfficeProof.Lint.Tests;
@@ -244,6 +245,50 @@ public sealed class RevisionInStylesTests
     }
 }
 
+public sealed class WordOpenRuleTests
+{
+    private static XElement Table(params XElement[] properties) => new(Ns.W + "tbl",
+        new XElement(Ns.W + "tblPr", new XElement(Ns.W + "tblW", new XAttribute(Ns.W + "w", 0), new XAttribute(Ns.W + "type", "auto")), properties),
+        new XElement(Ns.W + "tblGrid", new XElement(Ns.W + "gridCol", new XAttribute(Ns.W + "w", 2000))),
+        new XElement(Ns.W + "tr", new XElement(Ns.W + "tc", P(null, R("cell")))));
+
+    [Fact]
+    public void Tables_without_a_look_are_counted_and_tables_with_one_are_not()
+    {
+        var builder = new DocxBuilder()
+            .Raw(Table())
+            .Raw(Table(new XElement(Ns.W + "tblLook", new XAttribute(Ns.W + "val", "0000"))))
+            // A nested table is a table too.
+            .Raw(new XElement(Ns.W + "tbl",
+                new XElement(Ns.W + "tblPr", new XElement(Ns.W + "tblLook", new XAttribute(Ns.W + "val", "04A0"))),
+                new XElement(Ns.W + "tblGrid", new XElement(Ns.W + "gridCol", new XAttribute(Ns.W + "w", 2000))),
+                new XElement(Ns.W + "tr", new XElement(Ns.W + "tc", Table(), P(null)))));
+
+        var finding = Assert.Single(RunRule(builder, "table-look-missing"));
+
+        Assert.Equal(Severity.Warning, finding.Severity);
+        Assert.StartsWith("2 table(s) without w:tblLook", finding.Message, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void Update_fields_on_open_is_reported_only_when_set()
+    {
+        var builder = new DocxBuilder().Para("Body.");
+        Assert.Empty(RunRule(builder, "update-fields-on-open"));
+
+        var findings = RunRule(builder, "update-fields-on-open", path =>
+        {
+            using var doc = WordprocessingDocument.Open(path, isEditable: true);
+            var part = doc.MainDocumentPart!.DocumentSettingsPart!;
+            var xml = Docx.Load(part);
+            xml.Root!.Add(new XElement(Ns.W + "updateFields", new XAttribute(Ns.W + "val", "true")));
+            Docx.Save(part, xml);
+        });
+
+        Assert.Equal(("/word/settings.xml", Severity.Info), (Assert.Single(findings).Part, findings[0].Severity));
+    }
+}
+
 public sealed class LinterTests
 {
     [Fact]
@@ -259,6 +304,7 @@ public sealed class LinterTests
                 ("typed-caption-number", Severity.Warning), ("typed-cross-reference", Severity.Warning),
                 ("missing-reference-target", Severity.Error), ("toc-direct-formatting", Severity.Warning),
                 ("unresolved-revision", Severity.Warning), ("revision-in-styles", Severity.Error),
+                ("table-look-missing", Severity.Warning), ("update-fields-on-open", Severity.Info),
             ],
             rules.Select(r => (r.Id, r.Severity)));
         Assert.All(rules, r => Assert.False(string.IsNullOrWhiteSpace(r.Description)));

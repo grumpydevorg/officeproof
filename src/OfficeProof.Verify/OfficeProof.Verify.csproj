@@ -5,6 +5,10 @@
     <PackageReference Include="Clippit" />
   </ItemGroup>
   <ItemGroup>
+    <!-- The measured evidence behind RevisionAllowlist; RevisionEvidence reads it. -->
+    <EmbeddedResource Include="revision-evidence.json" LogicalName="OfficeProof.Verify.revision-evidence.json" />
+  </ItemGroup>
+  <ItemGroup>
     <InternalsVisibleTo Include="OfficeProof.Verify.Tests" />
   </ItemGroup>
 </Project>

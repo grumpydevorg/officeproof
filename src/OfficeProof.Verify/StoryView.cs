@@ -316,6 +316,10 @@ internal sealed class StoryView
         root.Descendants().Where(e => Bookkeeping.Contains(e.Name)).ToList().Remove();
         root.Descendants(W + "t").Where(t => t.Value.Length == 0).ToList().Remove();
         root.Descendants(W + "r").Where(r => r.Elements().All(c => c.Name == W + "rPr")).ToList().Remove();
+        // A hyperlink with no content shows and does nothing. Word's Reject All of an inserted link
+        // leaves one behind (an empty w:hyperlink with the link's r:id; Word for Mac 16.113,
+        // 2026-10-16), where Clippit removes it.
+        root.Descendants(W + "hyperlink").Where(h => !h.HasElements).ToList().Remove();
         // An empty property container says nothing; Clippit leaves one behind after rejecting a
         // property change that had nothing to restore (PlantedDefectTests "row-properties").
         foreach (var name in EmptyMeansAbsent)
@@ -333,6 +337,10 @@ internal sealed class StoryView
         || a.Name == Mc + "Ignorable"
         || (a.Name.Namespace == W && a.Name.LocalName.StartsWith("rsid", StringComparison.Ordinal))
         || a.Name == W14 + "paraId" || a.Name == W14 + "textId"
+        // Word assigns new drawing ids on every save: wp14 on wp:inline/wp:anchor, w14:anchorId on
+        // w:pict and v:shape (two Word saves of one unchanged document differed only in these,
+        // Word for Mac 16.113, 2026-10-16).
+        || a.Name == W14 + "anchorId"
         || a.Name == Wp14 + "anchorId" || a.Name == Wp14 + "editId"
         || (a.Name == W + "history" && a.Parent?.Name == W + "hyperlink");
 

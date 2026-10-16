@@ -182,6 +182,9 @@ public sealed class PlantedDefectTests : IDisposable
         ["table-cell-text"] = new("reject-mismatch", "main story",
             e => Set(Para(e.Body, "Cell text."), "Cell text, edited."),
             e => Track(e, Para(e.Body, "Cell text."), "Cell text.", "Cell text, edited.")),
+        // Word's Reject All of a tracked table, row, cell or section property change did not
+        // restore these fixtures (revision-evidence.json "word"), so the tracked forms fail closed
+        // and are left to verify --word.
         ["table-properties"] = new("reject-mismatch", "main story",
             e => e.Body.Descendants(W + "tblW").Single().SetAttributeValue(W + "w", 4000),
             e =>
@@ -190,7 +193,7 @@ public sealed class PlantedDefectTests : IDisposable
                 var old = new XElement(tblPr);
                 tblPr.Element(W + "tblW")!.SetAttributeValue(W + "w", 4000);
                 tblPr.Add(PropertyChange(e, "tblPrChange", old));
-            }),
+            }, TrackedRule: "unverifiable-revision"),
         ["table-grid"] = new("reject-mismatch", "main story",
             e => e.Body.Descendants(W + "gridCol").Single().SetAttributeValue(W + "w", 3000),
             e =>
@@ -219,7 +222,7 @@ public sealed class PlantedDefectTests : IDisposable
         ["row-properties"] = new("reject-mismatch", "main story",
             e => e.Body.Descendants(W + "tr").First().AddFirst(new XElement(W + "trPr", new XElement(W + "cantSplit"))),
             e => e.Body.Descendants(W + "tr").First().AddFirst(new XElement(W + "trPr", new XElement(W + "cantSplit"),
-                PropertyChange(e, "trPrChange", new XElement(W + "trPr"))))),
+                PropertyChange(e, "trPrChange", new XElement(W + "trPr")))), TrackedRule: "unverifiable-revision"),
         // Word for Windows and Word for Mac reject a tracked table-exception change differently
         // (RevisionKindProbeTests tblprex-change), so the tracked form fails closed.
         ["table-exception"] = new("reject-mismatch", "main story",
@@ -234,7 +237,7 @@ public sealed class PlantedDefectTests : IDisposable
                 var tcPr = e.Body.Descendants(W + "tcPr").First();
                 var old = new XElement(tcPr);
                 tcPr.Add(Shading(), PropertyChange(e, "tcPrChange", old));
-            }),
+            }, TrackedRule: "unverifiable-revision"),
         ["section-margins"] = new("reject-mismatch", "main story",
             e => e.Body.Element(W + "sectPr")!.Element(W + "pgSz")!.AddAfterSelf(Margins()),
             e =>
@@ -243,7 +246,7 @@ public sealed class PlantedDefectTests : IDisposable
                 var old = new XElement(W + "sectPr", sectPr.Elements().Where(c => c.Name != W + "headerReference" && c.Name != W + "footerReference").Select(c => new XElement(c)));
                 sectPr.Element(W + "pgSz")!.AddAfterSelf(Margins());
                 sectPr.Add(PropertyChange(e, "sectPrChange", old));
-            }),
+            }, TrackedRule: "unverifiable-revision"),
         ["section-break-margins"] = new("reject-mismatch", "main story",
             e => Para(e.Body, "First section.").Descendants(W + "pgSz").Single().AddAfterSelf(Margins()),
             e =>
@@ -252,7 +255,7 @@ public sealed class PlantedDefectTests : IDisposable
                 var old = new XElement(sectPr);
                 sectPr.Element(W + "pgSz")!.AddAfterSelf(Margins());
                 sectPr.Add(PropertyChange(e, "sectPrChange", old));
-            }),
+            }, TrackedRule: "unverifiable-revision"),
         ["header-text"] = new("reject-mismatch", "header (section 2, default)",
             e => Set(Para(e.Header, "Header text."), "Header text, edited."),
             e => Track(e, Para(e.Header, "Header text."), "Header text.", "Header text, edited.")),
@@ -522,6 +525,19 @@ public sealed class PlantedDefectTests : IDisposable
             Assert.True(errors.All(f => f.Rule == c.TrackedRule || f.Rule == c.Rule), Show(findings));
         }
         Assert.DoesNotContain(findings, f => f.Rule == "untracked-change");
+    }
+
+    [Fact]
+    public void Every_site_the_evidence_calls_planted_is_exercised_by_a_tracked_case()
+    {
+        // revision-evidence.json's "planted": true is a claim about this file; refused tracked
+        // cases (TrackedRule set) count, since they plant the site even though it fails closed.
+        var used = new HashSet<string>(StringComparer.Ordinal);
+        foreach (var (name, c) in Cases.Where(c => c.Value.Tracked is not null))
+            used.UnionWith(RevisionAllowlist.SitesUsed(File.ReadAllBytes(_r.Edit("planted-" + name, c.Tracked!, from: Original(c)))));
+
+        var claimed = RevisionEvidence.Sites.Values.Where(s => s.Planted).Select(s => s.Key);
+        Assert.Empty(claimed.Except(used).Order(StringComparer.Ordinal));
     }
 
     private static byte[] Entry(string path, string name)

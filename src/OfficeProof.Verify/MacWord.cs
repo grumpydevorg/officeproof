@@ -29,6 +29,23 @@ internal sealed class MacWord : IWordBackend
 
     public static bool Installed => Directory.Exists(WordApp) && File.Exists(Osascript);
 
+    public string EngineKey => "word-mac";
+
+    /// <summary>CFBundleShortVersionString of Word's Info.plist (an XML plist), e.g. 16.113.3.</summary>
+    public string? Version()
+    {
+        try
+        {
+            var dict = System.Xml.Linq.XDocument.Load(Path.Combine(WordApp, "Contents", "Info.plist")).Root?.Element("dict");
+            var key = dict?.Elements("key").FirstOrDefault(k => k.Value == "CFBundleShortVersionString");
+            return (key?.ElementsAfterSelf().FirstOrDefault() is { Name.LocalName: "string" } value) ? value.Value : null;
+        }
+        catch (Exception e) when (e is IOException or UnauthorizedAccessException or System.Xml.XmlException)
+        {
+            return null;
+        }
+    }
+
     private static string WorkRoot => Path.Combine(
         Environment.GetFolderPath(Environment.SpecialFolder.UserProfile), "Library", "Containers", "com.microsoft.Word", "Data", "tmp");
 

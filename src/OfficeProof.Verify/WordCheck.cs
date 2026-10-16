@@ -20,16 +20,20 @@ public static class WordCheck
     /// <summary>
     /// Rules: <c>word-reject-mismatch</c> (Error, a story differs after Word's Reject All),
     /// <c>comment-changed</c> and <c>unverifiable-revision</c> (Error, as in
-    /// <see cref="RevisionCheck"/>), <c>render-mismatch</c> (Error, a printed page differs) and
-    /// <c>word-render</c> (Info, the pages that were compared). Differing page images are kept in
-    /// <paramref name="keepDir"/> when it is given. <paramref name="options"/> declares the style
-    /// changes the redline intends (as for <see cref="RevisionCheck.Run"/>). Needs
-    /// <see cref="WordOracle.IsAvailable"/>.
+    /// <see cref="RevisionCheck"/>), <c>render-mismatch</c> (Error, a printed page differs),
+    /// <c>word-render</c> (Info, the pages that were compared), <c>word-version</c> (Info when
+    /// officeproof's revision evidence was measured on this Word's version, Warning otherwise) and
+    /// <c>word-adjusted</c> (Warning, Word was given adjusted copies, so its verdict covers the
+    /// adjusted copies). Differing page images are kept in <paramref name="keepDir"/> when it is
+    /// given. <paramref name="options"/> declares the style changes the redline intends (as for
+    /// <see cref="RevisionCheck.Run"/>). Needs <see cref="WordOracle.IsAvailable"/>.
     /// </summary>
     public static IReadOnlyList<Finding> RejectAll(string originalPath, string redlinePath, string? keepDir = null, TimeSpan? timeout = null,
         VerifyOptions? options = null)
     {
         options ??= new VerifyOptions();
+        var qualifications = new List<Finding> { VersionFinding() };
+        if (AdjustedFinding(originalPath, redlinePath) is { } adjusted) qualifications.Add(adjusted);
         var dir = Path.Combine(Path.GetTempPath(), "officeproof-wordcheck-" + Guid.NewGuid().ToString("N"));
         Directory.CreateDirectory(dir);
         try
@@ -61,12 +65,50 @@ public static class WordCheck
             WordOracle.ExportPdf(originalPath, OutlineView.RejectAll, originalPdf, timeout);
             WordOracle.ExportPdf(redlinePath, OutlineView.RejectAll, redlinePdf, timeout);
             findings.AddRange(Pages(PageDiff.Compare(originalPdf, redlinePdf, keepDir), keepDir));
-            return findings;
+            return [.. qualifications, .. findings];
         }
         finally
         {
             Directory.Delete(dir, recursive: true);
         }
+    }
+
+    /// <summary>Whether officeproof's revision evidence was measured on the installed Word's version.</summary>
+    internal static Finding VersionFinding()
+    {
+        var (measured, installed) = WordOracle.Version();
+        var evidence = $"officeproof's revision evidence was measured on {measured.Name} {measured.Version} ({measured.Measured})";
+        if (installed is null)
+            return new Finding("word-version", Severity.Warning, $"could not read the version of {measured.Name}; {evidence}");
+        return WordOracle.IsMeasured(measured.Version, installed)
+            ? new Finding("word-version", Severity.Info, $"{measured.Name} {installed}: {evidence}")
+            : new Finding("word-version", Severity.Warning,
+                $"{measured.Name} {installed} is not the version {evidence}: Word's own check below ran on this version, but which " +
+                "revisions Word and Clippit treat alike was not re-measured on it (maintainers: run the Word tests, OFFICEPROOF_WORD_TESTS=1, " +
+                "and record the version in revision-evidence.json)");
+    }
+
+    /// <summary>
+    /// What <see cref="WordOracle.CopyForWord"/> changed in either document before Word saw it,
+    /// and what that leaves unproven for the recipient's Word, which opens the files as they are.
+    /// </summary>
+    internal static Finding? AdjustedFinding(string originalPath, string redlinePath)
+    {
+        var original = WordOracle.CopyForWord(originalPath);
+        var redline = WordOracle.CopyForWord(redlinePath);
+        if (!original.Adjusted && !redline.Adjusted) return null;
+        var parts = new List<string>();
+        if (original.TablesGivenLook + redline.TablesGivenLook > 0)
+            parts.Add($"w:tblLook 04A0 added to tables that have none (original {original.TablesGivenLook}, redline {redline.TablesGivenLook}); " +
+                      "as the files are, Word styles those tables' header row and first column at random on each open, " +
+                      "in the original as in the redline");
+        if (original.UpdateFieldsRemoved || redline.UpdateFieldsRemoved)
+            parts.Add($"w:updateFields removed ({Which(original.UpdateFieldsRemoved, redline.UpdateFieldsRemoved)}); " +
+                      "as the files are, Word offers to update every field on open, and the updated results were not compared");
+        return new Finding("word-adjusted", Severity.Warning,
+            "Word was given adjusted copies, so its verdict covers the adjusted copies, not the files as they are: " + string.Join("; ", parts));
+
+        static string Which(bool original, bool redline) => original && redline ? "both" : original ? "original" : "redline";
     }
 
     /// <summary>

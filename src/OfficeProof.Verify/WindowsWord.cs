@@ -61,6 +61,24 @@ internal sealed class WindowsWord : IWordBackend
 
     public static bool Installed => Type.GetTypeFromProgID(ProgId) is not null;
 
+    public string EngineKey => "word-windows";
+
+    /// <summary>
+    /// The file version of the executable registered as the <c>Word.Application</c> COM server
+    /// (<c>CLSID\{…}\LocalServer32</c>), e.g. 16.0.20430.20146.
+    /// </summary>
+    public string? Version()
+    {
+        if (Type.GetTypeFromProgID(ProgId) is not { } type) return null;
+        using var key = Microsoft.Win32.Registry.ClassesRoot.OpenSubKey($@"CLSID\{{{type.GUID}}}\LocalServer32");
+        if (key?.GetValue(null) is not string command) return null;
+        // "C:\...\WINWORD.EXE" /Automation, quoted or not.
+        var exe = command.StartsWith('"')
+            ? command[1..Math.Max(1, command.IndexOf('"', 1))]
+            : command[..(command.IndexOf(".exe", StringComparison.OrdinalIgnoreCase) is var i and >= 0 ? i + 4 : command.Length)];
+        return File.Exists(exe) ? FileVersionInfo.GetVersionInfo(exe).FileVersion : null;
+    }
+
     private static string WorkRoot => Path.Combine(Path.GetTempPath(), "officeproof-word");
 
     public void SaveView(WordInput input, OutlineView view, string outputPath, TimeSpan timeout) =>

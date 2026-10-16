@@ -150,6 +150,20 @@ public static class WordOracle
         }
     }
 
+    /// <summary>
+    /// The installed Word's evidence engine (the build officeproof's revision evidence was
+    /// measured on) and its version (null when it cannot be read). Needs <see cref="IsAvailable"/>.
+    /// </summary>
+    internal static ((string Name, string Version, string Measured) Measured, string? Installed) Version()
+    {
+        var backend = Backend() ?? throw new WordOracleException("Microsoft Word is not available");
+        return (RevisionEvidence.Word(backend.EngineKey), backend.Version());
+    }
+
+    /// <summary>True when <paramref name="installed"/> is the measured version or a build of it (16.113.3 of 16.113).</summary>
+    internal static bool IsMeasured(string measured, string installed) =>
+        installed == measured || installed.StartsWith(measured + ".", StringComparison.Ordinal);
+
     private static IWordBackend? Backend()
     {
         if (OperatingSystem.IsMacOS() && MacWord.Installed) return MacWord.Instance;
@@ -163,7 +177,7 @@ public static class WordOracle
         var backend = Backend() ?? throw new WordOracleException(
             "Microsoft Word is not available: needs Word for Mac (/Applications/Microsoft Word.app and /usr/bin/osascript) or Word for Windows (the Word.Application COM class)");
         if (!File.Exists(path)) throw new FileNotFoundException("document not found", path);
-        return (backend, new WordInput(CopyForWord(path), Path.GetExtension(path)));
+        return (backend, new WordInput(CopyForWord(path).Bytes, Path.GetExtension(path)));
     }
 
     private static void RefuseInPlace(string path, string outputPath)
@@ -175,7 +189,8 @@ public static class WordOracle
     /// <summary>
     /// The bytes Word is given for <paramref name="path"/>: the document itself, refused when
     /// Word would block on it, without <c>w:updateFields</c>, and with an explicit
-    /// <c>w:tblLook</c> on every table that has none.
+    /// <c>w:tblLook</c> on every table that has none; with what was adjusted, which
+    /// <see cref="WordCheck"/> reports, since Word's verdict then covers the adjusted copy.
     /// </summary>
     /// <remarks>
     /// <para>
@@ -203,12 +218,13 @@ public static class WordOracle
     /// differ. The copy carries the documented 0x04A0, written as Word writes it.
     /// </para>
     /// </remarks>
-    internal static byte[] CopyForWord(string path)
+    internal static WordCopy CopyForWord(string path)
     {
         var bytes = File.ReadAllBytes(path);
         using var stream = new MemoryStream();
         stream.Write(bytes);
-        var changed = false;
+        var updateFieldsRemoved = false;
+        var tablesGivenLook = 0;
         using (var doc = WordprocessingDocument.Open(stream, isEditable: true))
         {
             var main = doc.MainDocumentPart ?? throw new InvalidDataException("package has no main document part");
@@ -220,7 +236,7 @@ public static class WordOracle
                 {
                     update.Remove();
                     Docx.Save(settingsPart, settings);
-                    changed = true;
+                    updateFieldsRemoved = true;
                 }
             }
             foreach (var part in Docx.StoryParts(main))
@@ -242,10 +258,12 @@ public static class WordOracle
                 }
                 if (missing.Count == 0) continue;
                 Docx.Save(part, xml);
-                changed = true;
+                tablesGivenLook += missing.Count;
             }
         }
-        return changed ? stream.ToArray() : bytes;
+        return updateFieldsRemoved || tablesGivenLook > 0
+            ? new WordCopy(stream.ToArray(), updateFieldsRemoved, tablesGivenLook)
+            : new WordCopy(bytes, false, 0);
     }
 
     /// <summary>
@@ -287,12 +305,27 @@ internal readonly record struct WordParagraph(string ListString, int? Level, str
 internal sealed record WordInput(byte[] Bytes, string Extension);
 
 /// <summary>
+/// <see cref="WordOracle.CopyForWord"/>'s result: the bytes Word is given, and what differs from
+/// the file: <c>w:updateFields</c> removed, <c>w:tblLook</c> added to that many tables.
+/// </summary>
+internal sealed record WordCopy(byte[] Bytes, bool UpdateFieldsRemoved, int TablesGivenLook)
+{
+    public bool Adjusted => UpdateFieldsRemoved || TablesGivenLook > 0;
+}
+
+/// <summary>
 /// One platform's Word. Each call writes <c>input</c> to a fresh temporary copy, opens it,
 /// applies <c>view</c> (Accept All, Reject All or neither) and closes the copy without saving,
 /// also on error and timeout.
 /// </summary>
 internal interface IWordBackend
 {
+    /// <summary>This Word's key in <see cref="RevisionEvidence.Engines"/>.</summary>
+    string EngineKey { get; }
+
+    /// <summary>The installed Word's version, read without starting Word; null when it cannot be read.</summary>
+    string? Version();
+
     void SaveView(WordInput input, OutlineView view, string outputPath, TimeSpan timeout);
 
     void ExportPdf(WordInput input, OutlineView view, string pdfPath, TimeSpan timeout);

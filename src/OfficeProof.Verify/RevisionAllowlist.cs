@@ -27,63 +27,12 @@ internal static class RevisionAllowlist
     };
 
     /// <summary>
-    /// The allowlist. "kind in container" admits a revision element under that parent (property
-    /// containers are written grandparent/parent); "inside X" admits X as an ancestor. Evidence is
-    /// a test that passes the tracked form through the pinned Clippit (zero errors) and fails the
-    /// untracked form; PlantedDefectTests cases are named in brackets. Word's own behaviour for
-    /// each container is recorded by ContainerProbeTests (Word, Clippit and ViewBytes agree).
+    /// The allowlist: every site <see cref="RevisionEvidence"/> admits. "kind in container" admits
+    /// a revision element under that parent (property containers are written
+    /// grandparent/parent); "inside X" admits X as an ancestor.
     /// </summary>
-    internal static readonly HashSet<string> Sites = new(StringComparer.Ordinal)
-    {
-        // Run-level insertion and deletion in a paragraph [body-text, paragraph-added,
-        // table-cell-text, header-text, footer-text, footnote-text, endnote-text, image-*].
-        "ins in p", "del in p",
-        // Deleting an earlier insertion (Word writes w:del inside w:ins) [ins-then-del].
-        "del in ins",
-        // Inside a hyperlink, through ClippitWorkarounds' markers [hyperlink-add, hyperlink-remove,
-        // hyperlink-retarget, hyperlink-anchor tracked forms; RevisionCheckTests hyperlink cases].
-        "ins in hyperlink", "del in hyperlink",
-        // Inserted/deleted paragraph marks [paragraph-added, paragraph-deleted, row-added, row-deleted].
-        "ins in pPr/rPr", "del in pPr/rPr",
-        // Inserted/deleted table rows [row-added, row-deleted].
-        "ins in tr/trPr", "del in tr/trPr",
-        // Property changes [paragraph-style, paragraph-properties, direct-numPr, run-formatting,
-        // paragraph-mark-formatting, hyperlink-formatting, section-margins, section-break-margins,
-        // table-properties, row-properties, cell-properties, table-grid, formatted-insertion,
-        // formatted-deletion].
-        "pPrChange in p/pPr", "rPrChange in r/rPr", "rPrChange in pPr/rPr",
-        "sectPrChange in body/sectPr", "sectPrChange in pPr/sectPr",
-        "tblPrChange in tbl/tblPr", "trPrChange in tr/trPr", "tcPrChange in tc/tcPr", "tblGridChange in tbl/tblGrid",
-        // Moves; moved paragraph marks through ClippitWorkarounds (without it Clippit left the
-        // moved-to paragraph behind as an empty paragraph) [move].
-        "moveFrom in p", "moveTo in p", "moveFrom in pPr/rPr", "moveTo in pPr/rPr",
-        "moveFromRangeStart in p", "moveFromRangeEnd in p", "moveToRangeStart in p", "moveToRangeEnd in p",
-        // Content controls, smart tags [sdt-text, block-sdt-text, smartTag]; simple fields through
-        // ClippitWorkarounds' markers (without them Clippit kept the inserted result) [fldSimple].
-        "ins in sdtContent", "del in sdtContent", "ins in smartTag", "del in smartTag", "ins in fldSimple", "del in fldSimple",
-        // Numbering property changes: Word, the pinned Clippit and ViewBytes reject and accept
-        // them alike, list strings included (RevisionKindProbeTests numbering-change; Word for Mac
-        // 16.113 and Word for Windows 16.0.20430, 2026-10-15). Off: w:tblPrExChange (Word for Mac
-        // and Clippit restore the row on Reject All, Word for Windows rebuilds the table grid and
-        // moves the row's cell edges), and cell insertion, deletion and merge (Clippit leaves a
-        // short row on rejecting cellIns and keeps a rejected cellMerge; cellDel has no planted case).
-        "numberingChange in pPr/numPr",
-
-        // Contexts. Story roots Clippit's RevisionProcessor rewrites (main, headers, footers,
-        // footnotes, endnotes) [body-text, header-text, footer-text, footnote-text, endnote-text];
-        // comments since the pinned Clippit 3.9.2-rmorgans (sergey-tihon/Clippit#553; 3.9.1
-        // left them untouched), Word rejecting and accepting them alike (ContainerProbeTests "comment text")
-        // [comment-changed, comment-formatting].
-        "inside document", "inside body", "inside hdr", "inside ftr",
-        "inside footnotes", "inside footnote", "inside endnotes", "inside endnote", "inside comments", "inside comment",
-        // Block and run structure [body-text, table-cell-text, row-added, table-properties, cell-properties,
-        // formatted-insertion, formatted-deletion, text-box-vml-text].
-        "inside p", "inside r", "inside tbl", "inside tr", "inside tc", "inside ins", "inside del",
-        // Hyperlinks and content controls [hyperlink-formatting, sdt-text, block-sdt-text].
-        "inside hyperlink", "inside sdt", "inside sdtContent",
-        // Text boxes, DrawingML and VML hosts [text-box-text, text-box-vml-text].
-        "inside txbxContent", "inside drawing", "inside pict",
-    };
+    internal static readonly HashSet<string> Sites =
+        new(RevisionEvidence.Sites.Keys.Where(s => RevisionEvidence.Refusal(s) is null), StringComparer.Ordinal);
 
     /// <summary>One finding per revision site not on the allowlist, per story part of <paramref name="package"/>.</summary>
     public static IEnumerable<Finding> Check(byte[] package, string label)
@@ -96,12 +45,13 @@ internal static class RevisionAllowlist
                 .GroupBy(x => x.Context is null ? x.Site : $"{x.Site} inside {x.Context}");
             foreach (var group in unverified)
             {
-                var first = group.First().Element;
+                var (first, site, context) = group.First();
                 var paragraph = first.AncestorsAndSelf(W + "p").FirstOrDefault();
                 var where = paragraph is null ? null : $"first in paragraph \"{ParagraphText.Excerpt(Wml.VisibleText(paragraph))}\"";
+                var reason = RevisionEvidence.Refusal(Sites.Contains(site) ? "inside " + context : site);
                 yield return new Finding("unverifiable-revision", Severity.Error,
-                    $"{label}: {group.Count()} tracked change(s) w:{group.Key} in {part}: officeproof has not verified what Reject All does with " +
-                    "this revision, so the redline cannot be shown to reject back to the original",
+                    $"{label}: {group.Count()} tracked change(s) w:{group.Key} in {part}: {reason}, " +
+                    "so the redline cannot be shown to reject back to the original",
                     part, where);
             }
         }
