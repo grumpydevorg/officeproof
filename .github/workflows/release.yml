@@ -30,6 +30,7 @@ jobs:
           - { rid: osx-arm64, os: macos-latest }
           - { rid: osx-x64, os: macos-26-intel }
     runs-on: ${{ matrix.os }}
+    timeout-minutes: 30
     defaults:
       run:
         shell: bash
@@ -78,7 +79,9 @@ jobs:
           cp "publish/$EXE" LICENSE README.md "stage/$NAME/"
 
       # The staged executable, alone in its directory, as a user unpacks it.
+      # A lost or hung macOS Intel runner once sat 44 min in this step with no log (2026-10-16).
       - name: Smoke test
+        timeout-minutes: 10
         run: bash eng/smoke.sh "stage/$NAME/$EXE"
 
       - name: Archive (zip)
