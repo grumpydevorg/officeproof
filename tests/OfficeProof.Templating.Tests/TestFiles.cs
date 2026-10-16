@@ -85,7 +85,10 @@ internal static class TestFiles
         return ReportMetadata.Load(path);
     }
 
-    /// <summary>Report metadata whose cover image is a 1x1 PNG written into <paramref name="tmp"/>.</summary>
+    /// <summary>
+    /// Report metadata whose cover image is a 1x1 PNG written into <paramref name="tmp"/>. The
+    /// path is single-quoted: in a double-quoted YAML scalar a Windows path's backslashes are escapes.
+    /// </summary>
     public static string ReportYaml(TempDir tmp)
     {
         var cover = tmp.File("cover.png");
@@ -98,7 +101,7 @@ internal static class TestFiles
               projectCode: "EX-999"
               version: "2026-10-15"
               author: "Dr Test Author"
-              coverImage: "{cover}"
+              coverImage: '{cover}'
             """;
     }
 

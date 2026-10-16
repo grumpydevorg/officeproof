@@ -54,6 +54,8 @@
 //      cell gridSpan 2)
 //   T  throws NullReferenceException (3.9.1's AcceptDeletedCellsTransform read the w:tcPr of the
 //      cell before the deleted one, which has none)
+//   M  moved cell edges: the row's text and properties restored, but the grid rebuilt with three
+//      columns, B1 and A2 spanning two, so row 2's cell edges no longer line up with row 1's
 //
 // | kind                                   | Word rej | Word acc | Clippit rej | Clippit acc | W=C rej | W=C acc | ViewBytes rej | ViewBytes acc | allowlist today |
 // |----------------------------------------|----------|----------|-------------|-------------|---------|---------|---------------|---------------|-----------------|
@@ -74,6 +76,12 @@
 // w:cellMerge; for w:tblPrExChange it copies the row's w:jc into w:trPr and adds a w:tcPrChange
 // to each cell of the row and a w:tblGridChange. A w:numberingChange in w:pPr/w:rPr is not
 // schema-valid (CT_ParaRPr has none) and was not shown to Word.
+//
+// Word for Windows (Microsoft 365, WINWORD 16.0.20430, Windows 11 on arm64; 2026-10-16) gives
+// every container outcome above and every kind outcome but one: its Reject All of the
+// w:tblPrExChange is M, not R (deterministic over four saves; WordCheck then reports
+// word-reject-mismatch and a changed printed page, where Word for Mac's pages are identical).
+// RevisionKindProbeTests.WindowsWord records it. Its list strings equal Word for Mac's.
 using System.Text;
 using System.Xml.Linq;
 using Clippit;
@@ -92,6 +100,7 @@ namespace OfficeProof.Verify.Tests;
 /// alters an agreement fails the suite; the Word test (OFFICEPROOF_WORD_TESTS=1) catches a Word
 /// upgrade.
 /// </summary>
+[Collection(WordTests.Name)]
 public sealed class ContainerProbeTests : IDisposable
 {
     internal enum Outcome { Rejected, Accepted, Untouched, InsertionKept, Refused }
@@ -176,7 +185,7 @@ public sealed class ContainerProbeTests : IDisposable
     public void Word_matches_the_recorded_outcome(string container, OutlineView view)
     {
         Assert.SkipUnless(Environment.GetEnvironmentVariable("OFFICEPROOF_WORD_TESTS") == "1" && WordOracle.IsAvailable,
-            "set OFFICEPROOF_WORD_TESTS=1 on macOS with Microsoft Word installed");
+            "set OFFICEPROOF_WORD_TESTS=1 with Microsoft Word installed (Mac or Windows)");
         var row = Recorded.Single(r => r.Container == container);
         var outcome = Pick(view, row.WordReject, row.WordAccept);
         var path = Fixture(container);
@@ -514,14 +523,15 @@ internal static class StoryDump
 /// with Clippit's ListItemRetriever. The allowlist test records which probed sites
 /// <see cref="RevisionAllowlist"/> refuses today.
 /// </summary>
+[Collection(WordTests.Name)]
 public sealed class RevisionKindProbeTests : IDisposable
 {
-    internal enum Outcome { Rejected, Accepted, ShortRow, Throws }
+    internal enum Outcome { Rejected, Accepted, ShortRow, Throws, MovedCellEdges }
 
     private sealed record Row(string Kind, Outcome WordReject, Outcome WordAccept,
         Outcome ClippitReject, Outcome ClippitAccept, Outcome ViewReject, Outcome ViewAccept);
 
-    private const Outcome R = Outcome.Rejected, A = Outcome.Accepted, G = Outcome.ShortRow, T = Outcome.Throws;
+    private const Outcome R = Outcome.Rejected, A = Outcome.Accepted, G = Outcome.ShortRow, T = Outcome.Throws, M = Outcome.MovedCellEdges;
 
     private static readonly Row[] Recorded =
     [
@@ -534,6 +544,12 @@ public sealed class RevisionKindProbeTests : IDisposable
         new("tblprex-change", R, A, R, A, R, A),
         new("del-in-ins-other-author", R, A, R, A, R, A),
     ];
+
+    /// <summary>Where Word for Windows (16.0.20430, 2026-10-16) differs from the recorded Word for Mac outcome.</summary>
+    private static readonly Dictionary<(string Kind, OutlineView View), Outcome> WindowsWord = new()
+    {
+        [("tblprex-change", OutlineView.RejectAll)] = M,
+    };
 
     /// <summary>
     /// The allowlist keys (<c>w:site</c> or <c>w:site inside context</c> of an
@@ -548,7 +564,7 @@ public sealed class RevisionKindProbeTests : IDisposable
         ["cell-del"] = ["cellDel in tc/tcPr"],
         ["cell-del-no-tcpr"] = ["cellDel in tc/tcPr"],
         ["cell-merge"] = ["cellMerge in tc/tcPr"],
-        ["tblprex-change"] = [],
+        ["tblprex-change"] = ["tblPrExChange in tblPrEx"],
         ["del-in-ins-other-author"] = [],
         ["dir"] = ["del in dir", "ins in dir", "rPrChange in r/rPr inside dir"],
         ["bdo"] = ["del in bdo", "ins in bdo", "rPrChange in r/rPr inside bdo"],
@@ -664,10 +680,13 @@ public sealed class RevisionKindProbeTests : IDisposable
     {
         SkipUnlessWord();
         var row = Recorded.Single(r => r.Kind == kind);
+        var outcome = OperatingSystem.IsWindows() && WindowsWord.TryGetValue((kind, view), out var windows)
+            ? windows
+            : Pick(view, row.WordReject, row.WordAccept);
         var saved = Path.Combine(_dir, $"{kind}-{view}-word.docx");
         WordOracle.SaveView(Build(kind), view, saved, TimeSpan.FromMinutes(2));
 
-        Assert.Equal(KindFixture.Expected(kind, view, Pick(view, row.WordReject, row.WordAccept)), KindDump.Of(File.ReadAllBytes(saved)));
+        Assert.Equal(KindFixture.Expected(kind, view, outcome), KindDump.Of(File.ReadAllBytes(saved)));
     }
 
     [Theory]
@@ -686,7 +705,7 @@ public sealed class RevisionKindProbeTests : IDisposable
 
     private static void SkipUnlessWord() =>
         Assert.SkipUnless(Environment.GetEnvironmentVariable("OFFICEPROOF_WORD_TESTS") == "1" && WordOracle.IsAvailable,
-            "set OFFICEPROOF_WORD_TESTS=1 on macOS with Microsoft Word installed");
+            "set OFFICEPROOF_WORD_TESTS=1 with Microsoft Word installed (Mac or Windows)");
 
     private static Outcome Pick(OutlineView view, Outcome reject, Outcome accept) => view == OutlineView.RejectAll ? reject : accept;
 
@@ -721,6 +740,7 @@ internal sealed class KindFixture
             RevisionKindProbeTests.Outcome.Rejected => false,
             RevisionKindProbeTests.Outcome.Accepted => true,
             RevisionKindProbeTests.Outcome.ShortRow when kind == "cell-ins" && view == OutlineView.RejectAll => false,
+            RevisionKindProbeTests.Outcome.MovedCellEdges when kind == "tblprex-change" && view == OutlineView.RejectAll => false,
             _ => throw new ArgumentOutOfRangeException(nameof(outcome), outcome, "no dump for this outcome"),
         };
         string[] lines = kind switch
@@ -735,7 +755,9 @@ internal sealed class KindFixture
             "cell-merge" => accepted
                 ? ["row 1: (vMerge=restart) A1 | B1", "row 2: (vMerge=continue)  | B2"]
                 : ["row 1: A1 | B1", "row 2:  | B2"],
-            "tblprex-change" => ["row 1: A1 | B1", accepted ? "row 2 jc=center: A2 | B2" : "row 2: A2 | B2"],
+            "tblprex-change" => accepted ? ["row 1: A1 | B1", "row 2 jc=center: A2 | B2"]
+                : outcome == RevisionKindProbeTests.Outcome.MovedCellEdges ? ["row 1: A1 | (span=2) B1", "row 2: (span=2) A2 | B2"]
+                : ["row 1: A1 | B1", "row 2: A2 | B2"],
             "del-in-ins-other-author" => [accepted ? "Alpha delta gamma" : "Alpha gamma"],
             _ => throw new ArgumentOutOfRangeException(nameof(kind), kind, "unknown probe kind"),
         };

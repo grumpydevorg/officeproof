@@ -1,0 +1,128 @@
+name: Release
+
+# A v* tag publishes a self-contained single-file officeproof for each runtime, smoke-tests each
+# on a native runner and attaches the archives and SHA256SUMS to the tag's GitHub release.
+# Run by hand (workflow_dispatch) it builds and smoke-tests the same archives as workflow
+# artifacts, versioned 0.0.0-dev.<run>, without releasing.
+on:
+  push:
+    tags: ['v*']
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+env:
+  DOTNET_NOLOGO: true
+  DOTNET_CLI_TELEMETRY_OPTOUT: true
+
+jobs:
+  publish:
+    name: publish (${{ matrix.rid }})
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { rid: win-x64, os: windows-latest }
+          - { rid: win-arm64, os: windows-11-arm }
+          - { rid: linux-x64, os: ubuntu-latest }
+          - { rid: linux-arm64, os: ubuntu-24.04-arm }
+          - { rid: osx-arm64, os: macos-latest }
+          - { rid: osx-x64, os: macos-26-intel }
+    runs-on: ${{ matrix.os }}
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-dotnet@v6
+        with:
+          dotnet-version: 10.0.x
+
+      - name: Restore the Clippit feed
+        id: clippit
+        uses: actions/cache@v6
+        with:
+          path: .local/nuget-feed
+          key: clippit-feed-${{ runner.os }}-${{ hashFiles('eng/pack-clippit.sh') }}
+
+      - name: Pack Clippit
+        if: steps.clippit.outputs.cache-hit != 'true'
+        run: bash eng/pack-clippit.sh
+
+      - name: Name the build
+        env:
+          RID: ${{ matrix.rid }}
+        run: |
+          if [[ $GITHUB_REF == refs/tags/v* ]]; then version=${GITHUB_REF_NAME#v}; else version=0.0.0-dev.$GITHUB_RUN_NUMBER; fi
+          exe=officeproof; [[ $RID == win-* ]] && exe=officeproof.exe
+          {
+            echo "VERSION=$version"
+            echo "EXE=$exe"
+            echo "NAME=officeproof-$version-$RID"
+          } >> "$GITHUB_ENV"
+
+      # Untrimmed and not AOT: the Word oracle on Windows uses built-in COM interop. Clippit
+      # brings SkiaSharp's native library, which no officeproof verb loads (Clippit calls it only
+      # for text metrics in FormattingAssembler and the HTML converters), so the archive carries
+      # the executable alone and IncludeNativeLibrariesForSelfExtract is not needed.
+      - name: Publish
+        run: >-
+          dotnet publish src/OfficeProof.Cli -c Release -r ${{ matrix.rid }} --self-contained
+          -p:PublishSingleFile=true -p:Version="$VERSION" -o publish
+
+      - name: Stage
+        run: |
+          mkdir -p "stage/$NAME" dist
+          cp "publish/$EXE" LICENSE README.md "stage/$NAME/"
+
+      # The staged executable, alone in its directory, as a user unpacks it.
+      - name: Smoke test
+        run: bash eng/smoke.sh "stage/$NAME/$EXE"
+
+      - name: Archive (zip)
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: Compress-Archive -Path "stage/$env:NAME" -DestinationPath "dist/$env:NAME.zip"
+
+      - name: Archive (tar.gz)
+        if: runner.os != 'Windows'
+        run: tar -czf "dist/$NAME.tar.gz" -C stage "$NAME"
+
+      - uses: actions/upload-artifact@v7
+        with:
+          name: ${{ env.NAME }}
+          path: dist/*
+          if-no-files-found: error
+
+  release:
+    if: startsWith(github.ref, 'refs/tags/v')
+    needs: publish
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@v8
+        with:
+          path: dist
+          merge-multiple: true
+
+      - name: Checksums
+        working-directory: dist
+        run: sha256sum officeproof-* > SHA256SUMS && cat SHA256SUMS
+
+      # Uploads to a release created beforehand (e.g. as a draft for the tag), else creates one.
+      - name: Release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          TAG: ${{ github.ref_name }}
+        run: |
+          if gh release view "$TAG" > /dev/null 2>&1; then
+            gh release upload "$TAG" dist/* --clobber
+          else
+            prerelease=()
+            [[ $TAG == *-* ]] && prerelease=(--prerelease)
+            gh release create "$TAG" dist/* --verify-tag --title "officeproof ${TAG#v}" --generate-notes "${prerelease[@]}"
+          fi

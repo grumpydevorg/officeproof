@@ -8,5 +8,6 @@ report:
   projectCode: "EX-001"
   version: "2026-10-15"
   author: "A. Author"
-  # Optional full-bleed cover image, relative to the template directory or absolute.
+  # Optional full-bleed cover image, relative to the template directory or absolute. Quote a
+  # Windows path with single quotes ('C:\Images\cover.jpg'): in double quotes \ starts an escape.
   # coverImage: "cover.jpg"

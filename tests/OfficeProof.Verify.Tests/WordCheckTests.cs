@@ -8,9 +8,10 @@ using static OfficeProof.Verify.Tests.Redlines;
 namespace OfficeProof.Verify.Tests;
 
 /// <summary>
-/// <see cref="WordCheck"/> against the real Microsoft Word. Opt-in: OFFICEPROOF_WORD_TESTS=1 on a
-/// Mac with Word installed, an unlocked GUI session and poppler's pdftoppm on PATH.
+/// <see cref="WordCheck"/> against the real Microsoft Word. Opt-in: OFFICEPROOF_WORD_TESTS=1 with
+/// Word installed (Mac: an unlocked GUI session; Windows: Word for Windows) and poppler's pdftoppm on PATH.
 /// </summary>
+[Collection(WordTests.Name)]
 public sealed class WordCheckTests : IDisposable
 {
     private readonly Redlines _r = new();
@@ -19,7 +20,7 @@ public sealed class WordCheckTests : IDisposable
 
     private static void RequireWord() =>
         Assert.SkipUnless(Environment.GetEnvironmentVariable("OFFICEPROOF_WORD_TESTS") == "1" && WordOracle.IsAvailable,
-            "set OFFICEPROOF_WORD_TESTS=1 on macOS with Microsoft Word installed");
+            "set OFFICEPROOF_WORD_TESTS=1 with Microsoft Word installed (Mac or Windows)");
 
     private static readonly TimeSpan Timeout = TimeSpan.FromMinutes(2);
 

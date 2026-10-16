@@ -10,9 +10,22 @@ using static OfficeProof.Verify.Tests.Redlines;
 namespace OfficeProof.Verify.Tests;
 
 /// <summary>
-/// Drives the real Microsoft Word. Opt-in: set OFFICEPROOF_WORD_TESTS=1 on a Mac with Word
-/// installed and an unlocked GUI session.
+/// The test classes that drive Word run one after another: <see cref="WordOracle"/> lets one
+/// call at a time into Word through a lock that is not first come, first served, so classes
+/// running in parallel let a call wait out its timeout behind the others' calls (seen on the
+/// Mac, 2026-10-16, with Word slowed by a busy machine).
 /// </summary>
+[CollectionDefinition(Name)]
+public sealed class WordTests
+{
+    public const string Name = "Microsoft Word";
+}
+
+/// <summary>
+/// Drives the real Microsoft Word. Opt-in: set OFFICEPROOF_WORD_TESTS=1 with Word installed: on a
+/// Mac with an unlocked GUI session, or Word for Windows.
+/// </summary>
+[Collection(WordTests.Name)]
 public sealed class WordOracleTests : IDisposable
 {
     private readonly Redlines _r = new();
@@ -21,7 +34,7 @@ public sealed class WordOracleTests : IDisposable
 
     private static void RequireWord() =>
         Assert.SkipUnless(Environment.GetEnvironmentVariable("OFFICEPROOF_WORD_TESTS") == "1" && WordOracle.IsAvailable,
-            "set OFFICEPROOF_WORD_TESTS=1 on macOS with Microsoft Word installed");
+            "set OFFICEPROOF_WORD_TESTS=1 with Microsoft Word installed (Mac or Windows)");
 
     private static List<(string, string)> Pairs(IEnumerable<OutlineEntry> outline) =>
         [.. outline.Select(e => (e.ListNumber, e.Text))];
@@ -80,6 +93,60 @@ public sealed class WordOracleTests : IDisposable
     }
 
     [Fact]
+    public void Word_copy_gives_a_table_without_a_look_the_documented_one()
+    {
+        static XElement Table(params XElement[] properties) => new(W + "tbl",
+            new XElement(W + "tblPr", new XElement(W + "tblW", new XAttribute(W + "w", 0), new XAttribute(W + "type", "auto")), properties),
+            new XElement(W + "tblGrid", new XElement(W + "gridCol", new XAttribute(W + "w", 2000))),
+            new XElement(W + "tr", new XElement(W + "tc", P(R("cell")))));
+        var path = new DocxBuilder()
+            .Raw(Table(new XElement(W + "tblCaption", new XAttribute(W + "val", "No look"))))
+            .Para("Between.")
+            .Raw(Table(new XElement(W + "tblLook", new XAttribute(W + "val", "0000"))))
+            .Save(Path.Combine(_r.Dir, "tables.docx"));
+        var copy = Path.Combine(_r.Dir, "tables-for-word.docx");
+
+        File.WriteAllBytes(copy, WordOracle.CopyForWord(path));
+
+        using (var doc = WordprocessingDocument.Open(copy, isEditable: false))
+        {
+            var looks = Docx.Load(doc.MainDocumentPart!).Descendants(W + "tblLook").ToList();
+            Assert.Equal(["04A0", "0000"], looks.Select(l => (string?)l.Attribute(W + "val")));
+            Assert.Equal(W + "tblCaption", looks[0].ElementsAfterSelf().Single().Name);
+        }
+        Assert.Empty(Docx.Validate(copy));
+    }
+
+    [Fact]
+    public void Word_copy_of_a_document_without_tables_or_update_fields_is_the_input()
+    {
+        var path = new DocxBuilder().Heading("Head1", "Summary").Para("No tables.").Save(Path.Combine(_r.Dir, "plain.docx"));
+
+        Assert.Equal(File.ReadAllBytes(path), WordOracle.CopyForWord(path));
+    }
+
+    [Fact]
+    public void Word_copy_does_not_ask_word_to_update_fields_on_open()
+    {
+        var path = new DocxBuilder().Para("Body.").Save(Path.Combine(_r.Dir, "update-fields.docx"));
+        List<XName> others;
+        using (var doc = WordprocessingDocument.Open(path, isEditable: true))
+        {
+            var part = doc.MainDocumentPart!.DocumentSettingsPart!;
+            var xml = Docx.Load(part);
+            others = [.. xml.Root!.Elements().Select(e => e.Name)];
+            xml.Root.Add(new XElement(W + "updateFields", new XAttribute(W + "val", "true")));
+            Docx.Save(part, xml);
+        }
+        var copy = Path.Combine(_r.Dir, "update-fields-for-word.docx");
+
+        File.WriteAllBytes(copy, WordOracle.CopyForWord(path));
+
+        using var result = WordprocessingDocument.Open(copy, isEditable: false);
+        Assert.Equal(others, Docx.Load(result.MainDocumentPart!.DocumentSettingsPart!).Root!.Elements().Select(e => e.Name));
+    }
+
+    [Fact]
     public void Word_reject_all_of_a_redline_reads_as_word_resave_of_its_original()
     {
         RequireWord();
@@ -100,10 +167,13 @@ public sealed class WordOracleTests : IDisposable
     }
 
     /// <summary>
-    /// Measured 2026-10-15 (Word 16.113): two Word saves of one revision-free document, and its
-    /// saves after Reject All and Accept All, differ only in what <see cref="WordSave.Canonical"/>
-    /// strips. Word saves are not idempotent across generations (a resave of a Word save dropped
-    /// a w:tblPrEx the first save had added), so compare only saves of the same generation.
+    /// Measured 2026-10-15 (Word 16.113) and 2026-10-16 (Word for Windows 16.0.20430): two Word
+    /// saves of one revision-free document, and its saves after Reject All and Accept All, differ
+    /// only in what <see cref="WordSave.Canonical"/> strips, once the fixture's table (written
+    /// without w:tblLook) reaches Word with one (<see cref="WordOracle.CopyForWord"/>; without
+    /// it both Words saved 04A0 or 0000 at random). Word saves are not idempotent across
+    /// generations (a resave of a Word save dropped a w:tblPrEx the first save had added), so
+    /// compare only saves of the same generation.
     /// </summary>
     [Fact]
     public void Word_saves_of_one_document_differ_only_in_bookkeeping()
@@ -127,7 +197,7 @@ public sealed class WordOracleTests : IDisposable
         {
             Assert.Equal(expected.Keys, parts.Keys);
             foreach (var (part, content) in expected)
-                Assert.True(content == parts[part], $"{name}: {part} differs from resave-1 beyond bookkeeping");
+                Assert.True(content == parts[part], $"{name}: {part} differs from resave-1 beyond bookkeeping: {WordSave.FirstDifference(content, parts[part])}");
         }
     }
 
@@ -191,7 +261,8 @@ internal static class WordSave
     /// <summary>
     /// Every part of a Word-saved package (XML as text, other parts as SHA-256) without what Word
     /// regenerates on each save: w14:paraId, w14:textId and w14:anchorId, every w:rsid*
-    /// attribute, settings' w:rsids and w14:docId, the comment paragraph ids and durable ids in
+    /// attribute, settings' w:rsids, w14:docId and w15:docId (Word for Windows writes a new one on
+    /// every save), the comment paragraph ids and durable ids in
     /// commentsExtended (w15:paraId) and commentsIds (w16cid:paraId, w16cid:durableId), and the
     /// save stamps in docProps (cp:revision, cp:lastModifiedBy, dcterms:created,
     /// dcterms:modified, TotalTime).
@@ -214,7 +285,7 @@ internal static class WordSave
             var xml = XDocument.Load(buffer);
             foreach (var e in xml.Descendants().ToList())
             {
-                if (e.Name == W + "rsids" || e.Name == W14 + "docId" || e.Name == Cp + "revision" || e.Name == Cp + "lastModifiedBy"
+                if (e.Name == W + "rsids" || e.Name == W14 + "docId" || e.Name == W15 + "docId" || e.Name == Cp + "revision" || e.Name == Cp + "lastModifiedBy"
                     || e.Name == DcTerms + "created" || e.Name == DcTerms + "modified" || e.Name == App + "TotalTime")
                 {
                     e.Remove();
@@ -225,6 +296,16 @@ internal static class WordSave
             parts[entry.FullName] = xml.ToString(SaveOptions.DisableFormatting);
         }
         return parts;
+    }
+
+    /// <summary>Both texts around their first differing character, for a failure message.</summary>
+    public static string FirstDifference(string a, string b)
+    {
+        var i = 0;
+        while (i < a.Length && i < b.Length && a[i] == b[i]) i++;
+        var start = Math.Max(0, i - 80);
+        string Around(string s) => s[Math.Min(start, s.Length)..Math.Min(s.Length, i + 160)];
+        return $"at {i}: \"{Around(a)}\" vs \"{Around(b)}\"";
     }
 
     private static bool IsBookkeeping(XAttribute a) =>
@@ -264,6 +345,7 @@ internal static class WordSave
 /// OFFICEPROOF_SMOKE_ORIGINAL and OFFICEPROOF_SMOKE_REDLINE (and OFFICEPROOF_WORD_TESTS=1 to add the
 /// Word comparison); the report is written to OFFICEPROOF_SMOKE_OUT or the temp directory.
 /// </summary>
+[Collection(WordTests.Name)]
 public sealed class RealDocumentSmoke
 {
     [Fact]

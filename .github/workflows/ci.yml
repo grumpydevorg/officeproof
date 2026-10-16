@@ -1,0 +1,70 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+env:
+  DOTNET_NOLOGO: true
+  DOTNET_CLI_TELEMETRY_OPTOUT: true
+
+jobs:
+  test:
+    name: test (${{ matrix.os }})
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest, macos-latest]
+    runs-on: ${{ matrix.os }}
+    defaults:
+      run:
+        # Git Bash on Windows: eng/pack-clippit.sh is the same script everywhere.
+        shell: bash
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-dotnet@v6
+        with:
+          dotnet-version: 10.0.x
+
+      # The patched Clippit (eng/pack-clippit.sh) until a nuget.org release has the fixes. The
+      # script pins the Clippit commit, so its hash identifies the package.
+      - name: Restore the Clippit feed
+        id: clippit
+        uses: actions/cache@v6
+        with:
+          path: .local/nuget-feed
+          key: clippit-feed-${{ runner.os }}-${{ hashFiles('eng/pack-clippit.sh') }}
+
+      - name: Pack Clippit
+        if: steps.clippit.outputs.cache-hit != 'true'
+        run: bash eng/pack-clippit.sh
+
+      - name: Build
+        run: dotnet build officeproof.slnx -warnaserror
+
+      # Word tests skip without OFFICEPROOF_WORD_TESTS; page comparison tests skip without pdftoppm.
+      - name: Test
+        run: dotnet test --solution officeproof.slnx --no-build
+
+  nix:
+    name: nix build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: cachix/install-nix-action@448cde739abec1eaf0646249e3d25bb8d9bc7702 # v31.11.2
+
+      # Builds Clippit and officeproof from the locked NuGet deps; the install check generates,
+      # validates and verifies the example template's sample with the installed binary.
+      - name: Build .#officeproof
+        run: nix build .#officeproof --print-build-logs

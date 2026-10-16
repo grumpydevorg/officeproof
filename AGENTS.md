@@ -20,32 +20,47 @@ and inspect or edit a workbook without disturbing it. User-facing documentation 
   RevisionProcessor fixes, open upstream as sergey-tihon/Clippit#548-#555 and merged on the
   fork https://github.com/rmorgans/Clippit. `eng/pack-clippit.sh` builds it from that exact
   commit (cloning into `CLIPPIT_DIR`, default `.local/Clippit`) into the repository-local feed `.local/nuget-feed`
-  that `nuget.config` names; run it once per checkout before the first restore. `nix/clippit.nix`
+  that `nuget.config` names; run it once per checkout before the first restore (on Windows in
+  Git Bash: from PowerShell, `bash` may be WSL's). `nix/clippit.nix`
   packs the same commit for the Nix package. When a nuget.org release contains the fixes, pin
   it and delete the script, `nuget.config`, `nix/clippit.nix` (and the `projectReferences`
-  entry in `nix/package.nix`) and `ClippitWorkarounds`.
+  entry in `nix/package.nix`), the Clippit feed steps in `.github/workflows/` and `ClippitWorkarounds`.
 - **Nix**: `flake.nix` exports `packages.<system>.officeproof` and `overlays.default`;
   `nix/package.nix` builds the CLI with `buildDotnetModule` and its install check generates,
   validates and verifies the example template's sample. `nix/deps.json` and
   `nix/clippit-deps.json` lock NuGet packages; regenerate after any package-reference change:
   `nix build .#officeproof.fetch-deps -o fd && ./fd nix/deps.json` (`.clippit.fetch-deps` for
   Clippit). Tests run from source (`dotnet test`), not in the Nix build.
-- **poppler** `pdftoppm` on PATH for `PageDiff` (Word's PDFs to page images; the Nix wrapper adds it).
+- **poppler** `pdftoppm` on PATH for `PageDiff` (Word's PDFs to page images; the Nix wrapper
+  adds it). On Windows `PageDiff.FindOnPath` resolves `pdftoppm.exe` through `PATHEXT`.
+- **CI** (`.github/workflows/ci.yml`, push to `main` and pull requests): build with warnings as
+  errors and test on Ubuntu, Windows and macOS (Clippit feed cached on the script's hash; Word
+  tests skip), and `nix build .#officeproof`. Windows checkouts are CRLF (`core.autocrlf`) and
+  the tests pass on them; `.gitattributes` keeps `*.sh` LF for shells other than Git Bash.
+- **Releases** (`.github/workflows/release.yml`): a `v*` tag publishes a self-contained
+  single-file executable (`-p:Version` from the tag) for win-x64, win-arm64, linux-x64,
+  linux-arm64, osx-arm64 and osx-x64, each on a native runner, runs `eng/smoke.sh` on it
+  (generate, validate, a redline that verifies, an untracked replace that does not) and attaches
+  the archives and `SHA256SUMS` to the tag's release; run by hand it builds the archives as
+  artifacts only. No trimming or AOT (the Windows Word oracle uses built-in COM interop). The
+  archive holds the executable alone: no verb loads Clippit's SkiaSharp native library (Clippit
+  uses it only for text metrics in `FormattingAssembler.AssembleFormatting` and the HTML
+  converters); a verb that reaches those must ship it (`-p:IncludeNativeLibrariesForSelfExtract=true`).
 - **System.CommandLine** 2.0 for the host; **xUnit v3** on Microsoft.Testing.Platform.
 - Homebrew .NET: the `officeproof` apphost cannot find the runtime unless
   `DOTNET_ROOT=/opt/homebrew/opt/dotnet/libexec`; run `dotnet <path>/officeproof.dll` instead.
 
 ```
-eng/pack-clippit.sh                                         # once per checkout: the pinned Clippit
+bash eng/pack-clippit.sh                                    # once per checkout: the pinned Clippit
 dotnet build officeproof.slnx
-dotnet test --solution officeproof.slnx --no-build          # Word tests (about 40) skip unless OFFICEPROOF_WORD_TESTS=1
+dotnet test --solution officeproof.slnx --no-build          # the 68 Word tests skip unless OFFICEPROOF_WORD_TESTS=1
 dotnet run --project src/OfficeProof.Cli -- <verb> ...      # or: dotnet src/OfficeProof.Cli/bin/Debug/net10.0/officeproof.dll
 ```
 
-Word tests drive the real Microsoft Word for Mac through AppleScript; set
-`OFFICEPROOF_WORD_TESTS=1` only on a Mac with Word installed. A smoke test runs `verify` on a
-real pair of documents from outside the tree: `OFFICEPROOF_SMOKE_ORIGINAL`,
-`OFFICEPROOF_SMOKE_REDLINE`, optionally `OFFICEPROOF_SMOKE_OUT`.
+Word tests drive the real Microsoft Word (see [The Word oracle](#the-word-oracle)); set
+`OFFICEPROOF_WORD_TESTS=1` only where Word is installed: on a Mac, or on Windows in a desktop
+session. A smoke test runs `verify` on a real pair of documents from outside the tree:
+`OFFICEPROOF_SMOKE_ORIGINAL`, `OFFICEPROOF_SMOKE_REDLINE`, optionally `OFFICEPROOF_SMOKE_OUT`.
 
 ## Components
 
@@ -87,6 +102,37 @@ Templates are data: `--template <dir>` (or `OFFICEPROOF_TEMPLATE`) names a direc
 schema is documented in [examples/minimal-template/README.md](examples/minimal-template/README.md).
 There is no built-in template.
 
+## The Word oracle
+
+`WordOracle` (outline, Accept/Reject-All save, PDF, field update) asks the real Microsoft Word
+through one backend per platform, with one API and the same answers: `MacWord` drives Word for
+Mac through AppleScript (osascript; Word is sandboxed, so copies live in its container), and
+`WindowsWord` drives Word for Windows through in-process COM (late-bound `dynamic`; each call
+starts its own invisible Word instance on an STA thread and quits it, so a Word the user has
+open is never touched). Both pass the Word tests: Word for Mac 16.113 (macOS 26.6) and Word for
+Windows 16.0.20430 (Microsoft 365, Windows 11 on arm64), 2026-10-15/16.
+
+- Every call opens a temporary copy, one officeproof document in Word at a time across
+  processes (a lock file), alerts off, closed without saving even on error. At the timeout the
+  Mac backend kills osascript and closes the copy; the Windows backend kills the Word process
+  it started (never one it cannot identify as its own).
+- The copy (`WordOracle.CopyForWord`): run-level `w:customXml` is refused (Word for Mac
+  answers it with a modal dialog that blocks automation); `w:updateFields`, which `generate`
+  and `retemplate` set, is dropped (Word for Mac asks about it in a modal dialog that may open
+  off screen; `verify --word` on generate's sample hung until its timeout); a table without
+  `w:tblLook` gets the documented 0x04A0 (both Words otherwise read it as 0000 or 04A0 at
+  random, per open).
+- Windows: Word cannot open or save documents from session 0 (an SSH logon, a service), so the
+  backend refuses there; run it in a desktop session (over SSH: a scheduled task with an
+  interactive logon). Word's PDF after Accept/Reject All is exported from a fresh open of its
+  save of the view: the live view laid an edited line out 0.12 pt off. COM needs built-in
+  interop, so the CLI is never trimmed or AOT-compiled.
+- One recorded difference: Word for Windows' Reject All of a row-level `w:tblPrExChange`
+  rebuilds the table grid, moving the row's cell edges and changing the printed page
+  (`RevisionKindProbeTests.WindowsWord`); Word for Mac and Clippit restore the row. The
+  allowlist therefore refuses `w:tblPrExChange` (`unverifiable-revision`): a redline the two
+  Words reject differently cannot be shown to reject back to the original.
+
 ## The methodology
 
 The goal is **separation of content and presentation**: content references named styles,
@@ -126,17 +172,20 @@ reader sees (headings, captions, cross-references, TOC) is generated by Word, no
   `ClippitWorkarounds` (marker pairs for hyperlinks and simple fields, the other two fixed
   up front) stays until a nuget.org release has the fixes. Revisions anywhere else fail closed
   (`unverifiable-revision`): `RevisionAllowlist` lists each allowed site with its evidence.
-  Still off it: `w:cellIns` (the pinned Clippit leaves the row a cell short) and `w:cellMerge`
-  (it keeps a rejected merge), where Clippit and Word disagree (`RevisionKindProbeTests`);
-  `w:cellDel` and revisions in `w:dir`/`w:bdo`, which now agree but have no planted cases yet
-  (the SDK validator also rejects `w:dir`/`w:bdo`); and run-level `w:customXml` (Word answers
-  it with a modal dialog).
-- Word (16.113) accepts and rejects tracked changes in headers, footers, notes, comments, text
-  boxes, hyperlinks, content controls, smart tags, simple fields, table cells, moves, numbering
-  changes and table-exception changes the same way the pinned Clippit does
-  (`ContainerProbeTests`, `RevisionKindProbeTests`). `--word` therefore
-  also compares Word's own Reject-All save of each document story by story, and their PDFs
-  page by page at zero pixel tolerance (two exports of one document are pixel-identical).
+  Still off it: `w:cellIns` (the pinned Clippit leaves the row a cell short), `w:cellMerge`
+  (it keeps a rejected merge) and `w:tblPrExChange` (Word for Windows rejects it differently
+  from Word for Mac), where the engines disagree (`RevisionKindProbeTests`); `w:cellDel` and
+  revisions in `w:dir`/`w:bdo`, which now agree but have no planted cases yet (the SDK
+  validator also rejects `w:dir`/`w:bdo`); and run-level `w:customXml` (Word answers it with a
+  modal dialog).
+- Word for Mac (16.113) and Word for Windows (16.0.20430) accept and reject tracked changes in
+  headers, footers, notes, comments, text boxes, hyperlinks, content controls, smart tags,
+  simple fields, table cells, moves, numbering changes and table-exception changes the same way
+  the pinned Clippit does, except Word for Windows' Reject All of a table-exception change
+  (`ContainerProbeTests`, `RevisionKindProbeTests`, [The Word oracle](#the-word-oracle)).
+  `--word` therefore also compares Word's own Reject-All save of each document story by story,
+  and their PDFs page by page at zero pixel tolerance (two exports of one document are
+  pixel-identical).
 - Untracked changes to definitions (`definition-changed`, Error): an existing style changed or
   removed unless declared, `docDefaults`, an existing list (`abstractNum`/`num`), the theme,
   and settings that affect layout. New styles and lists, review-state settings (rsids, zoom,
@@ -183,8 +232,9 @@ reader sees (headings, captions, cross-references, TOC) is generated by Word, no
 ## Layout
 
 ```
-officeproof.slnx, global.json, Directory.Build.props, Directory.Packages.props, nuget.config
-eng/pack-clippit.sh
+officeproof.slnx, global.json, Directory.Build.props, Directory.Packages.props, nuget.config, .gitattributes
+eng/pack-clippit.sh, eng/smoke.sh
+.github/workflows/{ci.yml,release.yml}
 flake.nix, flake.lock, nix/{package.nix,clippit.nix,deps.json,clippit-deps.json}
 src/OfficeProof.{Core,Templating,Lint,Edit,Redline,Verify,Spreadsheet,Cli}/
 tests/OfficeProof.{Templating,Lint,Edit,Redline,Verify,Spreadsheet}.Tests/, tests/OfficeProof.TestKit/

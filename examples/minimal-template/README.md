@@ -49,8 +49,8 @@ dataStore:                        # the custom-XML store bound controls read and
 logo: logo.png                    # optional: .png/.jpg/.jpeg for footer.xml's {{LOGOID}}
 
 fonts:                            # optional: a family embedded in every output (obfuscated .odttf);
-  family: Example Sans            # faces are looked up in --fonts (default ~/Library/Fonts) and
-  regular: ExampleSans-Regular.otf          # a missing face is reported, not fatal
+  family: Example Sans            # faces are looked up in --fonts, else the default font
+  regular: ExampleSans-Regular.otf          # directories (below); a missing face is reported, not fatal
   bold: ExampleSans-Bold.otf
   italic: ExampleSans-Italic.otf
   boldItalic: ExampleSans-BoldItalic.otf
@@ -82,3 +82,13 @@ palette:                          # optional: lint brand-colour flags explicit c
   nearMisses:
     1f4e78: 1f4e79 (dark blue) - one digit out   # hex -> hint shown with the finding
 ```
+
+Font faces are found by file name, at the top of a directory or in its subdirectories. With
+`--fonts <dir>` only that directory is searched; otherwise the user's font directory, then the
+machine's (`generate --help` prints them):
+
+| OS | Default font directories, in order |
+|---|---|
+| macOS | `~/Library/Fonts`, `/Library/Fonts` |
+| Windows | `%LOCALAPPDATA%\Microsoft\Windows\Fonts` (installed for the current user), `%WINDIR%\Fonts` |
+| Linux | `$XDG_DATA_HOME/fonts` (default `~/.local/share/fonts`), `/usr/local/share/fonts`, `/usr/share/fonts` |

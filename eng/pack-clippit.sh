@@ -9,7 +9,9 @@
 # gitignored Clippit/Properties/AssemblyInfo.g.cs; this script writes that file itself with the
 # patched version and passes the package version to `dotnet pack`.
 #
-# Delete this script, nuget.config and the feed once a nuget.org Clippit contains the fixes.
+# Runs under bash on macOS and Linux and under Git Bash on Windows (`bash eng/pack-clippit.sh`;
+# needs git and the .NET SDK on PATH). Delete this script, nuget.config, the feed and the
+# workflows' Clippit feed steps once a nuget.org Clippit contains the fixes.
 set -euo pipefail
 
 readonly COMMIT=4fc1f95c7a509e941b6cb4a528951d9530f5a7aa

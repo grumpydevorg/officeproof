@@ -36,7 +36,8 @@ internal static class TemplateCommands
 
     private static Option<DirectoryInfo?> FontsOption() => new("--fonts")
     {
-        Description = "Directory holding the font faces template.yaml names (default ~/Library/Fonts)",
+        Description = "Directory holding the font faces template.yaml names, subdirectories included " +
+            $"(default, searched in order: {string.Join(", ", FontEmbedder.DefaultFontDirectories)})",
     };
 
     public static Command Generate()
@@ -143,5 +144,6 @@ internal static class TemplateCommands
         }
         Console.WriteLine($"fonts embedded: {fonts.Embedded.Count} ({fonts.Family})");
         Output.List("font missing", fonts.Missing);
+        if (fonts.Missing.Count > 0) Console.WriteLine($"  fonts searched: {string.Join(", ", fonts.FontDirectories)}");
     }
 }

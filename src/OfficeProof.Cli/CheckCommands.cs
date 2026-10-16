@@ -59,7 +59,7 @@ internal static class CheckCommands
         var redline = new Argument<FileInfo>("redline") { Description = "The tracked-change copy" };
         var word = new Option<bool>("--word")
         {
-            Description = "Also have Microsoft Word (macOS) reject all changes in both documents and compare every story and every printed page, " +
+            Description = "Also have Microsoft Word (Mac or Windows) reject all changes in both documents and compare every story and every printed page, " +
                           "compare its heading numbers in both views, update fields and report Error! results (about 2-3 minutes on a 40-page report)",
         };
         var keep = new Option<DirectoryInfo?>("--keep-pages") { Description = "With --word: directory for the page images of pages that differ" };
@@ -144,7 +144,7 @@ internal static class CheckCommands
 
     private static void RequireWord()
     {
-        if (!WordOracle.IsAvailable) throw new InvalidOperationException("--word needs Microsoft Word for Mac and osascript");
+        if (!WordOracle.IsAvailable) throw new InvalidOperationException("--word needs Microsoft Word: Word for Mac with osascript, or Word for Windows");
     }
 
     /// <summary>

@@ -1,4 +1,5 @@
 using System.CommandLine;
+using System.Text;
 using OfficeProof.Cli;
 
 // officeproof is a thin host: every verb parses its options, calls one or more component
@@ -16,4 +17,18 @@ var root = new RootCommand("officeproof: composable tools for Word (.docx/.dotx)
     CheckCommands.Outline(),
     XlsxCommands.Create(),
 };
-return root.Parse(args).Invoke();
+
+// Windows consoles start in the OEM code page (437, 850, ...), which has no "—", "…" or "•":
+// .NET drops or replaces them on screen and in redirected output. Write UTF-8, as on macOS and
+// Linux, and give the console its code page back on exit.
+if (!OperatingSystem.IsWindows()) return root.Parse(args).Invoke();
+var consoleEncoding = Console.OutputEncoding;
+Console.OutputEncoding = Encoding.UTF8;
+try
+{
+    return root.Parse(args).Invoke();
+}
+finally
+{
+    Console.OutputEncoding = consoleEncoding;
+}

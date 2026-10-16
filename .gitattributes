@@ -1,0 +1,4 @@
+# Shell scripts stay LF whatever core.autocrlf says (Windows checkouts, GitHub's Windows runners
+# included, are CRLF). Git for Windows' bash reads CRLF scripts, but stock bash (WSL, containers,
+# a Linux machine sharing the checkout) stops at `set: pipefail\r: invalid option name`.
+*.sh text eol=lf

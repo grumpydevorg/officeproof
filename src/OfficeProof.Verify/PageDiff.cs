@@ -161,11 +161,26 @@ public static class PageDiff
             .Select(p => p.Path)];
     }
 
-    private static string? FindOnPath(string name) =>
-        (Environment.GetEnvironmentVariable("PATH") ?? "")
+    /// <summary>
+    /// The first file named <paramref name="name"/> in a <c>PATH</c> directory. On Windows a name
+    /// without an extension is tried with each <c>PATHEXT</c> extension instead (pdftoppm.exe), as
+    /// cmd.exe resolves a command.
+    /// </summary>
+    internal static string? FindOnPath(string name) => FindOnPath(name, Environment.GetEnvironmentVariable("PATH"),
+        OperatingSystem.IsWindows() ? Environment.GetEnvironmentVariable("PATHEXT") ?? ".COM;.EXE;.BAT;.CMD" : null);
+
+    // pathExt: null where executables have no extension (everywhere but Windows). Windows PATH
+    // entries may be quoted.
+    internal static string? FindOnPath(string name, string? path, string? pathExt)
+    {
+        string[] names = pathExt is null || Path.HasExtension(name)
+            ? [name]
+            : [.. pathExt.Split(';', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries).Select(ext => name + ext)];
+        return (path ?? "")
             .Split(Path.PathSeparator, StringSplitOptions.RemoveEmptyEntries)
-            .Select(dir => Path.Combine(dir, name))
+            .SelectMany(dir => names.Select(n => Path.Combine(dir.Trim('"'), n)))
             .FirstOrDefault(File.Exists);
+    }
 
     /// <summary>Reads a binary 8-bit PGM (P5), the format pdftoppm writes with <c>-gray</c>.</summary>
     internal static GrayImage ReadPgm(string path)

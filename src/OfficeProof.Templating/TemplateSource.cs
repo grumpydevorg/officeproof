@@ -74,12 +74,12 @@ public sealed class TemplateSource
 
     /// <summary>
     /// The embedder for the manifest's font family, looking for its faces in
-    /// <paramref name="fontDirectory"/> (default <see cref="FontEmbedder.UserFontDirectory"/>);
+    /// <paramref name="fontDirectory"/> (default <see cref="FontEmbedder.DefaultFontDirectories"/>);
     /// null when the template embeds no fonts.
     /// </summary>
     public FontEmbedder? FontEmbedder(string? fontDirectory = null) =>
         Manifest.Fonts is { } fonts
-            ? new FontEmbedder(fontDirectory ?? Templating.FontEmbedder.UserFontDirectory, fonts.Family, fonts.Faces)
+            ? new FontEmbedder(fontDirectory is null ? Templating.FontEmbedder.DefaultFontDirectories : [fontDirectory], fonts.Family, fonts.Faces)
             : null;
 
     private void RequireParts(IEnumerable<string> parts)

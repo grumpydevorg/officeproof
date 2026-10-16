@@ -220,10 +220,13 @@ public sealed class PlantedDefectTests : IDisposable
             e => e.Body.Descendants(W + "tr").First().AddFirst(new XElement(W + "trPr", new XElement(W + "cantSplit"))),
             e => e.Body.Descendants(W + "tr").First().AddFirst(new XElement(W + "trPr", new XElement(W + "cantSplit"),
                 PropertyChange(e, "trPrChange", new XElement(W + "trPr"))))),
+        // Word for Windows and Word for Mac reject a tracked table-exception change differently
+        // (RevisionKindProbeTests tblprex-change), so the tracked form fails closed.
         ["table-exception"] = new("reject-mismatch", "main story",
             e => e.Body.Descendants(W + "tr").First().AddFirst(new XElement(W + "tblPrEx", new XElement(W + "jc", new XAttribute(W + "val", "center")))),
             e => e.Body.Descendants(W + "tr").First().AddFirst(new XElement(W + "tblPrEx", new XElement(W + "jc", new XAttribute(W + "val", "center")),
-                PropertyChange(e, "tblPrExChange", new XElement(W + "tblPrEx"))))),
+                PropertyChange(e, "tblPrExChange", new XElement(W + "tblPrEx")))),
+            TrackedRule: "unverifiable-revision"),
         ["cell-properties"] = new("reject-mismatch", "main story",
             e => e.Body.Descendants(W + "tcPr").First().Add(Shading()),
             e =>

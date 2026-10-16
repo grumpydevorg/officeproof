@@ -26,6 +26,34 @@ Every writing verb takes an input and a separate output; nothing is edited in pl
 
 ## Install
 
+Download the archive for your platform from
+[Releases](https://github.com/grumpydevorg/officeproof/releases): one self-contained executable
+(no .NET needed) with this README and the licence; `SHA256SUMS` lists the archives' checksums.
+
+| Platform | Archive |
+|---|---|
+| Windows x64, Arm64 | `officeproof-<version>-win-x64.zip`, `officeproof-<version>-win-arm64.zip` |
+| macOS Apple silicon, Intel | `officeproof-<version>-osx-arm64.tar.gz`, `officeproof-<version>-osx-x64.tar.gz` |
+| Linux x64, Arm64 (glibc) | `officeproof-<version>-linux-x64.tar.gz`, `officeproof-<version>-linux-arm64.tar.gz` |
+
+```powershell
+# Windows (PowerShell); then add the folder to PATH
+Expand-Archive officeproof-<version>-win-x64.zip -DestinationPath $env:LOCALAPPDATA\Programs
+& "$env:LOCALAPPDATA\Programs\officeproof-<version>-win-x64\officeproof.exe" --help
+```
+
+```sh
+# macOS and Linux; then copy officeproof onto PATH
+tar -xzf officeproof-<version>-osx-arm64.tar.gz
+./officeproof-<version>-osx-arm64/officeproof --help
+```
+
+The executables are not signed by a developer certificate. macOS refuses to open one a browser
+downloaded until its quarantine flag is removed
+(`xattr -d com.apple.quarantine officeproof`; `curl` downloads carry no flag). The Linux builds
+need ICU (`libicu`), which desktop distributions include. Page comparison needs poppler's
+`pdftoppm` on PATH (`pdftoppm.exe` on Windows).
+
 With Nix (macOS or Linux; builds the patched Clippit too, and puts `pdftoppm` on the path):
 
 ```sh
@@ -37,18 +65,29 @@ The flake also exports `overlays.default` (adds `officeproof` to a package set).
 
 ## Build from source
 
-Requires the .NET 10 SDK. While the patched Clippit is unreleased, build it into the
-repository-local NuGet feed `.local/nuget-feed` once per checkout:
+Requires the .NET 10 SDK and Git. While the patched Clippit is unreleased, build it into the
+repository-local NuGet feed `.local/nuget-feed` once per checkout. The script is bash: on
+Windows run it in Git Bash (installed with Git for Windows); from PowerShell call Git's bash by
+path (`& "$env:ProgramFiles\Git\bin\bash.exe" eng/pack-clippit.sh`), since `bash` there may be WSL's.
 
 ```sh
-eng/pack-clippit.sh           # clones the pinned Clippit fork commit into .local/Clippit (override with CLIPPIT_DIR)
+bash eng/pack-clippit.sh      # clones the pinned Clippit fork commit into .local/Clippit (override with CLIPPIT_DIR)
 dotnet build officeproof.slnx
 dotnet test --solution officeproof.slnx --no-build
 ```
 
+A release-style executable (any of the runtime identifiers above, e.g. `win-x64`), and the
+end-to-end check the release workflow runs on it:
+
+```sh
+dotnet publish src/OfficeProof.Cli -c Release -r win-x64 --self-contained -p:PublishSingleFile=true -o publish
+bash eng/smoke.sh publish/officeproof.exe
+```
+
 Run the CLI with `dotnet src/OfficeProof.Cli/bin/Debug/net10.0/officeproof.dll <verb>` (or
 `dotnet run --project src/OfficeProof.Cli -- <verb>`). `--word` and the Word tests need
-Microsoft Word for Mac; page comparison needs poppler's `pdftoppm`.
+Microsoft Word (for Mac, or for Windows in a desktop session); page comparison needs poppler's
+`pdftoppm`.
 
 `nix/` packages the same build: `nix/clippit.nix` packs the Clippit fork commit that
 `eng/pack-clippit.sh` uses, and `nix/deps.json` / `nix/clippit-deps.json` lock the NuGet
@@ -100,11 +139,11 @@ All, so `verify` refuses them and `redline` numbers headings with new styles ins
 - Comment anchor positions, bookmark ids, rsids and paragraph ids are treated as bookkeeping
   and not compared; inherited headers are not resolved per section; charts are compared only
   as bytes; custom XML parts are warnings only; the glossary document is not compared.
-- Revision kinds where Clippit and Word disagree or that have no planted test case
-  (`w:cellIns`, `w:cellMerge`, `w:cellDel`, revisions in `w:dir`/`w:bdo`, run-level
-  `w:customXml`) fail closed as unverifiable.
-- `--word` drives Microsoft Word for Mac through AppleScript; on other platforms only the
-  in-process checks run.
+- Revision kinds where Clippit and Word, or Word for Mac and Word for Windows, disagree, or
+  that have no planted test case (`w:cellIns`, `w:cellMerge`, `w:cellDel`, `w:tblPrExChange`,
+  revisions in `w:dir`/`w:bdo`, run-level `w:customXml`) fail closed as unverifiable.
+- `--word` drives Microsoft Word for Mac (AppleScript) or Word for Windows (COM, in a desktop
+  session, not over SSH or as a service); elsewhere only the in-process checks run.
 - Depends on a patched Clippit build (`eng/pack-clippit.sh`) until the fixes reach nuget.org.
 
 ## Contributing

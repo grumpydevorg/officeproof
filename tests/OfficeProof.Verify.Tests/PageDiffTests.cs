@@ -88,8 +88,24 @@ public sealed class PageDiffTests : IDisposable
     }
 
     internal static void RequirePdftoppm() =>
-        Assert.SkipUnless((Environment.GetEnvironmentVariable("PATH") ?? "").Split(Path.PathSeparator)
-            .Any(d => File.Exists(Path.Combine(d, "pdftoppm"))), "pdftoppm (poppler) is not on PATH");
+        Assert.SkipWhen(PageDiff.FindOnPath("pdftoppm") is null, "pdftoppm (poppler) is not on PATH");
+
+    [Fact]
+    public void A_command_is_found_on_path_with_a_pathext_extension_where_one_is_given()
+    {
+        var first = Directory.CreateDirectory(Path.Combine(_dir, "first")).FullName;
+        var second = Directory.CreateDirectory(Path.Combine(_dir, "second")).FullName;
+        var bare = Path.Combine(first, "tool");
+        var exe = Path.Combine(second, "tool.EXE");
+        File.WriteAllBytes(bare, []);
+        File.WriteAllBytes(exe, []);
+        var path = string.Join(Path.PathSeparator, $"\"{first}\"", second);
+
+        Assert.Equal(exe, PageDiff.FindOnPath("tool", path, ".COM;.EXE"));
+        Assert.Equal(bare, PageDiff.FindOnPath("tool", path, pathExt: null));
+        Assert.Equal(exe, PageDiff.FindOnPath("tool.EXE", path, ".COM;.EXE"));
+        Assert.Null(PageDiff.FindOnPath("other", path, ".COM;.EXE"));
+    }
 
     [Fact]
     public void Same_pdf_content_renders_identically()

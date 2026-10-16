@@ -61,12 +61,13 @@ internal static class RevisionAllowlist
         // Content controls, smart tags [sdt-text, block-sdt-text, smartTag]; simple fields through
         // ClippitWorkarounds' markers (without them Clippit kept the inserted result) [fldSimple].
         "ins in sdtContent", "del in sdtContent", "ins in smartTag", "del in smartTag", "ins in fldSimple", "del in fldSimple",
-        // Numbering and table-exception property changes: Word, the pinned Clippit and ViewBytes
-        // reject and accept them alike, list strings included (RevisionKindProbeTests
-        // numbering-change, tblprex-change; Word 16.113, 2026-10-15). Cell insertion, deletion
-        // and merge stay off: Clippit leaves a short row on rejecting cellIns, throws on cellDel
-        // after a cell without tcPr, and keeps a rejected cellMerge.
-        "numberingChange in pPr/numPr", "tblPrExChange in tblPrEx",
+        // Numbering property changes: Word, the pinned Clippit and ViewBytes reject and accept
+        // them alike, list strings included (RevisionKindProbeTests numbering-change; Word for Mac
+        // 16.113 and Word for Windows 16.0.20430, 2026-10-15). Off: w:tblPrExChange (Word for Mac
+        // and Clippit restore the row on Reject All, Word for Windows rebuilds the table grid and
+        // moves the row's cell edges), and cell insertion, deletion and merge (Clippit leaves a
+        // short row on rejecting cellIns and keeps a rejected cellMerge; cellDel has no planted case).
+        "numberingChange in pPr/numPr",
 
         // Contexts. Story roots Clippit's RevisionProcessor rewrites (main, headers, footers,
         // footnotes, endnotes) [body-text, header-text, footer-text, footnote-text, endnote-text];

@@ -8,7 +8,7 @@ namespace OfficeProof.Templating.Tests;
 
 public sealed class FontEmbedderTests
 {
-    private static FontEmbedder TestSans(string fontDirectory) => new(fontDirectory, "Test Sans",
+    private static FontEmbedder TestSans(params string[] fontDirectories) => new(fontDirectories, "Test Sans",
         [.. TestFaces.Select((f, i) => new FontFace(f, (FontSlot)i))]);
 
     [Fact]
@@ -63,6 +63,59 @@ public sealed class FontEmbedderTests
         s.CopyTo(ms);
         var key = Guid.Parse(((string)embed.Attribute(Ns.W + "fontKey")!).Trim('{', '}'));
         Assert.Equal(face, FontEmbedder.Obfuscate(ms.ToArray(), key));
+    }
+
+    [Fact]
+    public void A_face_comes_from_the_first_directory_holding_it_subdirectories_included()
+    {
+        using var tmp = new TempDir();
+        var user = tmp.Dir("user");
+        var system = tmp.Dir("system");
+        var nested = tmp.Dir(Path.Combine("system", "truetype", "test-sans"));
+        byte[] userFace = [1], systemFace = [2], nestedFace = [3];
+        File.WriteAllBytes(Path.Combine(user, "TestSans-Regular.otf"), userFace);
+        File.WriteAllBytes(Path.Combine(system, "TestSans-Regular.otf"), systemFace);
+        File.WriteAllBytes(Path.Combine(nested, "TestSans-Bold.otf"), nestedFace);
+        var path = DocxBuilder.TypedNumberReport(tmp.File("doc.docx"));
+        using var doc = WordprocessingDocument.Open(path, true);
+
+        var result = TestSans(tmp.File("absent"), user, system).Embed(doc.MainDocumentPart!);
+
+        Assert.Equal(["TestSans-Regular.otf", "TestSans-Bold.otf"], result.Embedded);
+        Assert.Equal(["TestSans-Italic.otf", "TestSans-BoldItalic.otf"], result.Missing);
+        var table = doc.MainDocumentPart!.FontTablePart!;
+        var regular = Assert.Single(Docx.Load(table).Descendants(Ns.W + "embedRegular"));
+        using var s = table.GetPartById((string)regular.Attribute(Ns.R + "id")!).GetStream();
+        using var ms = new MemoryStream();
+        s.CopyTo(ms);
+        var key = Guid.Parse(((string)regular.Attribute(Ns.W + "fontKey")!).Trim('{', '}'));
+        Assert.Equal(userFace, FontEmbedder.Obfuscate(ms.ToArray(), key));
+    }
+
+    [Fact]
+    public void The_default_font_directories_are_the_users_then_the_machines()
+    {
+        var home = Environment.GetFolderPath(Environment.SpecialFolder.UserProfile);
+        var dirs = FontEmbedder.DefaultFontDirectories;
+
+        if (OperatingSystem.IsWindows())
+        {
+            // Windows paths compare case-insensitively (%WINDIR% is C:\WINDOWS on some machines).
+            Assert.Equal([
+                Path.Combine(Environment.GetEnvironmentVariable("LOCALAPPDATA")!, "Microsoft", "Windows", "Fonts"),
+                Path.Combine(Environment.GetEnvironmentVariable("WINDIR")!, "Fonts")], dirs, StringComparer.OrdinalIgnoreCase);
+        }
+        else if (OperatingSystem.IsMacOS())
+        {
+            Assert.Equal([Path.Combine(home, "Library", "Fonts"), "/Library/Fonts"], dirs);
+        }
+        else
+        {
+            var dataHome = Environment.GetEnvironmentVariable("XDG_DATA_HOME") is { } x && Path.IsPathFullyQualified(x)
+                ? x
+                : Path.Combine(home, ".local", "share");
+            Assert.Equal([Path.Combine(dataHome, "fonts"), "/usr/local/share/fonts", "/usr/share/fonts"], dirs);
+        }
     }
 }
 

@@ -64,7 +64,7 @@ public static class Retemplater
     /// <param name="input">The report to retemplate.</param>
     /// <param name="output">Where to write the result; must differ from <paramref name="input"/>.</param>
     /// <param name="seed">Metadata for whatever the document cannot say about itself.</param>
-    /// <param name="fontDirectory">Where the manifest's font faces are; default <see cref="FontEmbedder.UserFontDirectory"/>.</param>
+    /// <param name="fontDirectory">Where the manifest's font faces are; default <see cref="FontEmbedder.DefaultFontDirectories"/>.</param>
     public static RetemplateResult Retemplate(TemplateSource source, string input, string output, ReportMetadata seed, string? fontDirectory = null)
     {
         var fonts = source.FontEmbedder(fontDirectory);

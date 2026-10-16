@@ -13,32 +13,59 @@ public sealed record FontFace(string FileName, FontSlot Slot);
 
 /// <summary>Outcome of <see cref="FontEmbedder.Embed"/>.</summary>
 /// <param name="Family">The font family name written to the font table.</param>
-/// <param name="FontDirectory">Where the faces were looked for.</param>
+/// <param name="FontDirectories">Where the faces were looked for, in search order.</param>
 /// <param name="Embedded">File names embedded.</param>
 /// <param name="Missing">File names not found; the document still builds, rendering falls back on machines without the font.</param>
-public sealed record FontEmbedResult(string Family, string FontDirectory, IReadOnlyList<string> Embedded, IReadOnlyList<string> Missing);
+public sealed record FontEmbedResult(string Family, IReadOnlyList<string> FontDirectories, IReadOnlyList<string> Embedded, IReadOnlyList<string> Missing);
 
 /// <summary>
 /// Embeds a font family as obfuscated <c>.odttf</c> font parts so the document renders in it on
 /// machines that do not have it installed. Word only uses them when settings carry
 /// <c>w:embedTrueTypeFonts</c> (see <see cref="SettingsInjector"/>).
 /// </summary>
-public sealed class FontEmbedder(string fontDirectory, string family, IReadOnlyList<FontFace> faces)
+public sealed class FontEmbedder(IReadOnlyList<string> fontDirectories, string family, IReadOnlyList<FontFace> faces)
 {
     private const string ObfuscatedFont = "application/vnd.openxmlformats-officedocument.obfuscatedFont";
     private static readonly XNamespace W = Ns.W;
     private static readonly XNamespace R = Ns.R;
+    private static readonly EnumerationOptions Subdirectories = new() { RecurseSubdirectories = true, IgnoreInaccessible = true };
 
-    public string FontDirectory { get; } = Path.GetFullPath(fontDirectory);
+    /// <summary>
+    /// Where faces are looked for. A face is the first file with its name in the first directory
+    /// that has one, at the top level or else in a subdirectory (Linux keeps system fonts in
+    /// trees such as /usr/share/fonts/truetype/&lt;family&gt;/). Directories that do not exist are skipped.
+    /// </summary>
+    public IReadOnlyList<string> FontDirectories { get; } = [.. fontDirectories.Select(Path.GetFullPath)];
     public string Family { get; } = family;
     public IReadOnlyList<FontFace> Faces { get; } = [.. faces.OrderBy(f => f.Slot)];
 
-    /// <summary>The per-user font directory on macOS (~/Library/Fonts), the default place to look for a template's faces.</summary>
-    public static string UserFontDirectory =>
-        Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.UserProfile), "Library", "Fonts");
+    /// <summary>
+    /// Where a template's faces are looked for by default: the user's font directory, then the
+    /// machine's. macOS: <c>~/Library/Fonts</c>, <c>/Library/Fonts</c>. Windows:
+    /// <c>%LOCALAPPDATA%\Microsoft\Windows\Fonts</c> (fonts installed for the current user),
+    /// <c>%WINDIR%\Fonts</c>. Linux and other Unix: <c>$XDG_DATA_HOME/fonts</c> (default
+    /// <c>~/.local/share/fonts</c>), <c>/usr/local/share/fonts</c>, <c>/usr/share/fonts</c>.
+    /// </summary>
+    public static IReadOnlyList<string> DefaultFontDirectories
+    {
+        get
+        {
+            if (OperatingSystem.IsWindows())
+            {
+                return [Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "Microsoft", "Windows", "Fonts"),
+                    Environment.GetFolderPath(Environment.SpecialFolder.Fonts)];
+            }
+            var home = Environment.GetFolderPath(Environment.SpecialFolder.UserProfile);
+            if (OperatingSystem.IsMacOS()) return [Path.Combine(home, "Library", "Fonts"), "/Library/Fonts"];
+            var dataHome = Environment.GetEnvironmentVariable("XDG_DATA_HOME") is { } x && Path.IsPathFullyQualified(x)
+                ? x
+                : Path.Combine(home, ".local", "share");
+            return [Path.Combine(dataHome, "fonts"), "/usr/local/share/fonts", "/usr/share/fonts"];
+        }
+    }
 
     /// <summary>
-    /// Embeds every face found in <see cref="FontDirectory"/>. Missing faces are listed in the
+    /// Embeds every face found in <see cref="FontDirectories"/>. Missing faces are listed in the
     /// result, never thrown. Any existing entry for <see cref="Family"/> in the font table is
     /// replaced (its font parts deleted); other fonts in the table are kept.
     /// </summary>
@@ -73,8 +100,7 @@ public sealed class FontEmbedder(string fontDirectory, string family, IReadOnlyL
         var missing = new List<string>();
         foreach (var face in Faces)
         {
-            var path = Path.Combine(FontDirectory, face.FileName);
-            if (!File.Exists(path))
+            if (Find(face.FileName) is not { } path)
             {
                 missing.Add(face.FileName);
                 continue;
@@ -90,7 +116,22 @@ public sealed class FontEmbedder(string fontDirectory, string family, IReadOnlyL
         }
         root.Add(font);
         Docx.Save(table, xml);
-        return new FontEmbedResult(Family, FontDirectory, embedded, missing);
+        return new FontEmbedResult(Family, FontDirectories, embedded, missing);
+    }
+
+    // See FontDirectories. Subdirectory matches are taken in ordinal path order, so the choice
+    // does not depend on the file system's enumeration order.
+    private string? Find(string fileName)
+    {
+        foreach (var dir in FontDirectories.Where(Directory.Exists))
+        {
+            var direct = Path.Combine(dir, fileName);
+            if (File.Exists(direct)) return direct;
+            if (Path.GetFileName(fileName) != fileName) continue;
+            if (Directory.EnumerateFiles(dir, fileName, Subdirectories).Order(StringComparer.Ordinal).FirstOrDefault() is { } nested)
+                return nested;
+        }
+        return null;
     }
 
     /// <summary>

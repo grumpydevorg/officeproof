@@ -22,7 +22,7 @@ public static class Generator
     /// <param name="source">The canonical parts.</param>
     /// <param name="metadata">Cover, header, data store and property values.</param>
     /// <param name="outputDirectory">Where to write.</param>
-    /// <param name="fontDirectory">Where the manifest's font faces are; default <see cref="FontEmbedder.UserFontDirectory"/>.</param>
+    /// <param name="fontDirectory">Where the manifest's font faces are; default <see cref="FontEmbedder.DefaultFontDirectories"/>.</param>
     public static GenerateResult Generate(TemplateSource source, ReportMetadata metadata, string outputDirectory, string? fontDirectory = null)
     {
         var fonts = source.FontEmbedder(fontDirectory);
