@@ -62,7 +62,7 @@ internal static class RevisionEvidence
         if (disagreeing.Count > 0)
             return string.Join("; ", disagreeing.Select(Disagreement));
         if (s.Word is not null)
-            return s.Word + "; make this change with a comment instead";
+            return s.Word;
         return s.Planted ? null : "officeproof has no planted test case for this revision yet, although Word and Clippit agree on it";
     }
 
